@@ -28,8 +28,7 @@ CREATE TABLE IF NOT EXISTS categories (
   created_at timestamp WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
-INSERT INTO categories (name) VALUES ('Pizza'), ('Lanches'), ('Japonesa'), ('Sobremesa'), ('Bebidas'), ('Geral') ON CONFLICT DO NOTHING;
-
+-- Default categories previously inserted here have been removed as per user request to manage entirely via Admin panel
 -- 2. Tabela de Produtos (Products)
 CREATE TABLE IF NOT EXISTS products (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),

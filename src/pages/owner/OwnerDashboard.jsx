@@ -1,48 +1,137 @@
 import { useState, useEffect } from 'react';
-import { Store, Package, Users, Settings, LogOut, CheckCircle, Clock, TrendingUp, DollarSign, Plus, ArrowRight } from 'lucide-react';
+import { Store, Package, Users, Settings, LogOut, CheckCircle, Clock, TrendingUp, DollarSign, Plus, ArrowRight, Trash2, Edit, Save, Info } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import Layout from '../../components/Layout';
 import { supabase } from '../../lib/supabaseClient';
 
-
-
 export default function OwnerDashboard() {
   const [activeTab, setActiveTab] = useState('orders');
   const [orders, setOrders] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [store, setStore] = useState(null);
+  
+  const [showProductModal, setShowProductModal] = useState(false);
+  const [editingProduct, setEditingProduct] = useState(null);
+  const [newProduct, setNewProduct] = useState({ name: '', description: '', price: '', category: '' });
+
+  const [storeSettings, setStoreSettings] = useState({ name: '', description: '', category: '', email: '', password: '' });
+
   const navigate = useNavigate();
 
+  async function fetchOwnerData() {
+    setLoading(true);
+    const sessionStore = JSON.parse(localStorage.getItem('owner_session'));
+    if (!sessionStore) {
+       navigate('/lojista/login');
+       return;
+    }
+    setStore(sessionStore);
+    setStoreSettings({
+      name: sessionStore.name || '',
+      description: sessionStore.description || '',
+      category: sessionStore.category || '',
+      email: sessionStore.email || '',
+      password: sessionStore.password || ''
+    });
+
+    try {
+       const { data: ordersData } = await supabase
+          .from('orders')
+          .select('*')
+          .eq('store_id', sessionStore.id)
+          .order('created_at', { ascending: false });
+
+       const { data: productsData } = await supabase
+          .from('products')
+          .select('*')
+          .eq('store_id', sessionStore.id)
+          .order('created_at', { ascending: false });
+
+       const { data: categoriesData } = await supabase
+          .from('categories')
+          .select('*')
+          .order('name');
+
+       setOrders(ordersData || []);
+       setProducts(productsData || []);
+       setCategories(categoriesData || []);
+    } catch (err) {
+       console.error('Error fetching data:', err);
+    } finally {
+       setLoading(false);
+    }
+  }
+
   useEffect(() => {
-     async function fetchOwnerData() {
-        const sessionStore = JSON.parse(localStorage.getItem('owner_session'));
-        if (!sessionStore) {
-           navigate('/lojista/login');
-           return;
-        }
-        setStore(sessionStore);
-
-        try {
-           const { data: ordersData, error: ordersError } = await supabase
-              .from('orders')
-              .select('*')
-              .eq('store_id', sessionStore.id)
-              .order('created_at', { ascending: false });
-
-           if (ordersData && ordersData.length > 0) {
-              setOrders(ordersData);
-           } else {
-              setOrders([]); // No orders found
-           }
-        } catch (err) {
-           console.error('Error fetching data:', err);
-        } finally {
-           setLoading(false);
-        }
-     }
      fetchOwnerData();
   }, [navigate]);
+
+  const handleSaveProduct = async (e) => {
+    e.preventDefault();
+    try {
+      if (editingProduct) {
+        const { error } = await supabase.from('products').update({
+          name: newProduct.name,
+          description: newProduct.description,
+          price: parseFloat(newProduct.price),
+          category: newProduct.category || (categories.length > 0 ? categories[0].name : 'Geral')
+        }).eq('id', editingProduct.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('products').insert([{
+          store_id: store.id,
+          name: newProduct.name,
+          description: newProduct.description,
+          price: parseFloat(newProduct.price),
+          category: newProduct.category || (categories.length > 0 ? categories[0].name : 'Geral')
+        }]);
+        if (error) throw error;
+      }
+      
+      setShowProductModal(false);
+      setEditingProduct(null);
+      setNewProduct({ name: '', description: '', price: '', category: '' });
+      fetchOwnerData();
+    } catch (err) {
+      alert('Erro ao salvar produto: ' + err.message);
+    }
+  };
+
+  const handleDeleteProduct = async (id) => {
+    if (!confirm('Deseja excluir este produto do cardápio?')) return;
+    try {
+      const { error } = await supabase.from('products').delete().eq('id', id);
+      if (error) throw error;
+      fetchOwnerData();
+    } catch (err) {
+      alert('Erro ao excluir produto: ' + err.message);
+    }
+  };
+
+  const handleUpdateSettings = async (e) => {
+    e.preventDefault();
+    try {
+      const { error } = await supabase.from('stores').update({
+        name: storeSettings.name,
+        description: storeSettings.description,
+        category: storeSettings.category,
+        email: storeSettings.email,
+        password: storeSettings.password
+      }).eq('id', store.id);
+
+      if (error) throw error;
+
+      const updatedStore = { ...store, ...storeSettings };
+      localStorage.setItem('owner_session', JSON.stringify(updatedStore));
+      setStore(updatedStore);
+      alert('Configurações da loja salvas com sucesso!');
+    } catch (err) {
+      alert('Erro ao atualizar configurações: ' + err.message);
+    }
+  };
 
   const menuItems = [
     { id: 'orders', label: 'Pedidos Ativos', icon: Clock },
@@ -62,11 +151,10 @@ export default function OwnerDashboard() {
             </div>
             <div>
               <h2 className="font-black text-slate-50 uppercase tracking-tighter text-xl">
-                {store?.name?.split(' ')[0] || 'Seu'} <span className="text-emerald-500">{store?.name?.split(' ')[1] || 'Dashboard'}</span>
+                {store && store.name ? store.name.split(' ')[0] : 'Seu'} <span className="text-emerald-500">{store && store.name && store.name.split(' ').length > 1 ? store.name.split(' ').slice(1).join(' ') : 'Dashboard'}</span>
               </h2>
               <p className="text-[10px] text-zinc-600 font-bold uppercase tracking-[0.3em]">{store?.category || 'Ambiente Lojista'}</p>
             </div>
-
           </Link>
         </div>
 
@@ -88,10 +176,10 @@ export default function OwnerDashboard() {
         </nav>
 
         <div className="p-8 border-t border-zinc-900">
-          <Link to="/lojista/login" className="flex items-center justify-center gap-3 text-rose-500 hover:bg-rose-500/10 px-6 py-4 rounded-2xl transition-all font-black uppercase tracking-widest text-xs border border-transparent hover:border-rose-500/20">
+          <button onClick={() => { localStorage.removeItem('owner_session'); navigate('/lojista/login'); }} className="w-full flex items-center justify-center gap-3 text-rose-500 hover:bg-rose-500/10 px-6 py-4 rounded-2xl transition-all font-black uppercase tracking-widest text-xs border border-transparent hover:border-rose-500/20">
             <LogOut size={18} strokeWidth={3} />
             Encerrar Sessão
-          </Link>
+          </button>
         </div>
       </aside>
 
@@ -100,7 +188,7 @@ export default function OwnerDashboard() {
         <header className="flex flex-col xl:flex-row justify-between items-start xl:items-end mb-16 gap-8">
           <div className="space-y-2">
             <h1 className="text-6xl font-black text-slate-50 uppercase tracking-tighter drop-shadow-2xl">
-              Dashboard <span className="text-zinc-800">Operational</span>
+              Painel <span className="text-zinc-800">Operacional</span>
             </h1>
             <p className="text-zinc-500 font-bold uppercase tracking-widest text-xs flex items-center gap-3">
                <span className="w-3 h-3 bg-emerald-500 rounded-full shadow-[0_0_15px_rgba(16,185,129,0.5)] animate-pulse" />
@@ -118,7 +206,6 @@ export default function OwnerDashboard() {
                <span className="text-zinc-600 text-[10px] font-black uppercase tracking-[0.2em] mb-1 block">Clientes Ativos</span>
                <p className="text-cyan-400 font-black text-3xl tracking-tighter">{store?.customers || 0} hits</p>
             </div>
-
           </div>
         </header>
 
@@ -145,7 +232,12 @@ export default function OwnerDashboard() {
               </div>
               
               <div className="grid grid-cols-1 gap-6">
-                {orders.map((order) => (
+                {orders.length === 0 ? (
+                  <div className="py-20 text-center bg-zinc-900/40 border border-zinc-800 rounded-[2.5rem]">
+                    <Clock className="mx-auto text-zinc-600 mb-4" size={48} />
+                    <p className="text-zinc-500 font-bold uppercase tracking-widest text-sm">Nenhum pedido no momento</p>
+                  </div>
+                ) : orders.map((order) => (
                   <motion.div 
                     key={order.id} 
                     whileHover={{ scale: 1.01 }}
@@ -154,19 +246,19 @@ export default function OwnerDashboard() {
                     <div className="space-y-4">
                       <div className="flex items-center gap-4">
                         <span className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-4 py-1.5 rounded-full font-black text-xs uppercase tracking-widest">
-                          #{order.id}
+                          #{order.id.slice(0,5)}
                         </span>
-                        <h3 className="text-2xl font-black text-slate-50 uppercase tracking-tighter">{order.customer}</h3>
+                        <h3 className="text-2xl font-black text-slate-50 uppercase tracking-tighter">{order.customer_name}</h3>
                         <span className="bg-zinc-950 text-zinc-500 px-3 py-1 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] border border-zinc-800">
-                          {order.type}
+                          {order.delivery_type === 'delivery' ? 'Entrega' : 'Retirada'}
                         </span>
                       </div>
                       <p className="text-zinc-400 text-lg font-medium tracking-tight bg-zinc-950/50 p-4 rounded-2xl border border-zinc-900 shadow-inner">
-                        {order.items}
+                        {typeof order.items === 'string' ? order.items : 'Ver Detalhes do Pedido...'}
                       </p>
                       <p className="text-zinc-600 text-[10px] font-black uppercase tracking-[0.3em] flex items-center gap-2">
                         <Clock size={12} strokeWidth={3} className="text-cyan-500" />
-                        Recebido há {order.time}
+                        Criado às {new Date(order.created_at).toLocaleTimeString('pt-BR')}
                       </p>
                     </div>
 
@@ -210,24 +302,234 @@ export default function OwnerDashboard() {
 
           {activeTab === 'products' && (
             <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              className="space-y-8"
+            >
+              <div className="flex items-center justify-between">
+                <h2 className="text-3xl font-black text-slate-50 uppercase tracking-tighter flex items-center gap-4">
+                   Gestão de Cardápio
+                   <div className="h-1 w-32 bg-gradient-to-r from-cyan-500 to-transparent rounded-full" />
+                </h2>
+                <button 
+                  onClick={() => {
+                     setEditingProduct(null);
+                     setNewProduct({ name: '', description: '', price: '', category: categories[0]?.name || 'Geral' });
+                     setShowProductModal(true);
+                  }}
+                  className="bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black px-6 py-3 rounded-xl text-[10px] uppercase tracking-widest transition-all flex items-center gap-2 border-t border-cyan-300 shadow-xl shadow-cyan-500/20"
+                >
+                  <Plus size={16} strokeWidth={3} />
+                  Adicionar Produto
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {products.length === 0 ? (
+                  <div className="col-span-full py-20 text-center bg-zinc-900/40 border border-zinc-800 rounded-[2.5rem]">
+                    <Package className="mx-auto text-zinc-600 mb-4" size={48} />
+                    <p className="text-zinc-500 font-bold uppercase tracking-widest text-sm">Nenhum produto cadastrado</p>
+                  </div>
+                ) : (
+                  products.map(product => (
+                    <div key={product.id} className="bg-zinc-900/40 backdrop-blur-xl border border-zinc-800 rounded-[2rem] p-8 shadow-2xl flex flex-col justify-between group hover:border-cyan-500/30 transition-colors">
+                      <div>
+                        <div className="flex justify-between items-start mb-6">
+                           <span className="text-[10px] font-black uppercase tracking-widest text-cyan-500 bg-cyan-500/10 px-3 py-1 rounded-md border border-cyan-500/20">{product.category || 'Geral'}</span>
+                           <span className="text-2xl font-black text-emerald-400">R$ {parseFloat(product.price).toFixed(2)}</span>
+                        </div>
+                        <h3 className="text-2xl font-black text-slate-50 uppercase tracking-tight mb-3">{product.name}</h3>
+                        <p className="text-zinc-400 text-sm font-medium line-clamp-3 leading-relaxed">{product.description || 'Produto sem descrição.'}</p>
+                      </div>
+                      <div className="mt-8 pt-6 border-t border-zinc-800/50 flex gap-3">
+                        <button 
+                          onClick={() => {
+                            setEditingProduct(product);
+                            setNewProduct({ name: product.name, description: product.description || '', price: product.price, category: product.category });
+                            setShowProductModal(true);
+                          }}
+                          className="flex-1 py-3 text-xs font-black uppercase tracking-widest text-zinc-400 bg-zinc-950/80 rounded-xl hover:text-cyan-400 border border-zinc-800 hover:border-cyan-500/30 transition-all flex items-center justify-center gap-2"
+                        >
+                          <Edit size={14} /> Editar
+                        </button>
+                        <button 
+                          onClick={() => handleDeleteProduct(product.id)}
+                          className="w-12 flex items-center justify-center text-zinc-500 bg-zinc-950/80 rounded-xl hover:text-rose-500 hover:bg-rose-500/10 border border-zinc-800 hover:border-rose-500/30 transition-all"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </motion.div>
+          )}
+
+          {activeTab === 'settings' && (
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              className="max-w-4xl"
+            >
+               <h2 className="text-3xl font-black text-slate-50 uppercase tracking-tighter flex items-center gap-4 mb-8">
+                   Configurações da Loja
+                   <div className="h-1 w-32 bg-gradient-to-r from-blue-500 to-transparent rounded-full" />
+               </h2>
+               
+               <form onSubmit={handleUpdateSettings} className="bg-zinc-900/40 backdrop-blur-xl border border-zinc-800 p-12 rounded-[3.5rem] shadow-2xl space-y-8">
+                 <div>
+                   <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-3 block ml-2">Nome da Loja Exibido aos Clientes</label>
+                   <input type="text" value={storeSettings.name} onChange={e => setStoreSettings({...storeSettings, name: e.target.value})} className="w-full bg-zinc-950 border-2 border-zinc-800 rounded-3xl py-5 px-8 text-sm font-bold text-zinc-100 focus:outline-none focus:border-blue-500 transition-colors shadow-inner" required />
+                 </div>
+
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                   <div>
+                     <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-3 block ml-2">Tipo de Empreendimento</label>
+                     <select value={storeSettings.category} onChange={e => setStoreSettings({...storeSettings, category: e.target.value})} className="w-full bg-zinc-950 border-2 border-zinc-800 rounded-3xl py-5 px-8 text-sm font-bold text-zinc-100 focus:outline-none focus:border-blue-500 transition-colors appearance-none shadow-inner" required>
+                       {categories.map(c => (
+                         <option key={c.id} value={c.name}>{c.name}</option>
+                       ))}
+                       {categories.length === 0 && <option value="Geral">Geral</option>}
+                     </select>
+                   </div>
+                   <div>
+                     <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-3 block ml-2">Slogan / Descrição Curta</label>
+                     <input type="text" value={storeSettings.description} onChange={e => setStoreSettings({...storeSettings, description: e.target.value})} placeholder="Slogan da sua marca..." className="w-full bg-zinc-950 border-2 border-zinc-800 rounded-3xl py-5 px-8 text-sm font-bold text-zinc-100 focus:outline-none focus:border-blue-500 transition-colors shadow-inner" />
+                   </div>
+                 </div>
+
+                 <div className="p-8 border-2 border-dashed border-zinc-800 rounded-3xl bg-zinc-950/30">
+                   <h3 className="text-sm font-black uppercase tracking-widest text-zinc-400 mb-6 flex items-center gap-2">
+                     <Shield size={16} /> Autenticação e Acesso
+                   </h3>
+                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                     <div>
+                       <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-3 block ml-2">E-mail de Login Corporativo</label>
+                       <input type="email" value={storeSettings.email} onChange={e => setStoreSettings({...storeSettings, email: e.target.value})} className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl py-4 px-6 text-sm font-bold text-zinc-300 focus:outline-none focus:border-blue-500 transition-colors" required />
+                     </div>
+                     <div>
+                       <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-3 block ml-2">Nova Chave de Acesso (Senha)</label>
+                       <input type="text" value={storeSettings.password} onChange={e => setStoreSettings({...storeSettings, password: e.target.value})} className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl py-4 px-6 text-sm font-bold text-zinc-300 focus:outline-none focus:border-blue-500 transition-colors" required />
+                     </div>
+                   </div>
+                 </div>
+                 
+                 <div className="pt-6">
+                   <button type="submit" className="bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-500 hover:to-cyan-400 text-slate-50 font-black px-12 py-6 rounded-full text-sm uppercase tracking-widest transition-all shadow-2xl shadow-blue-500/20 flex items-center justify-center gap-3 w-full hover:scale-[1.01] active:scale-[0.99] border-t-2 border-white/10">
+                     <Save size={20} className="drop-shadow-md" />
+                     Efetivar Alterações Seguras
+                   </button>
+                 </div>
+               </form>
+            </motion.div>
+          )}
+
+          {activeTab === 'analytics' && (
+            <motion.div 
               initial={{ opacity: 0 }} 
               animate={{ opacity: 1 }} 
               className="bg-zinc-900/50 backdrop-blur-xl border border-zinc-800 rounded-[3rem] p-16 text-center shadow-2xl"
             >
-              <div className="bg-cyan-500/10 w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-8 border border-cyan-500/20">
-                <Package className="text-cyan-500" size={48} />
+              <div className="bg-rose-500/10 w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-8 border border-rose-500/20">
+                <TrendingUp className="text-rose-500" size={48} />
               </div>
-              <h2 className="text-4xl font-black text-slate-50 uppercase tracking-tighter mb-4">Módulo de Estoque</h2>
+              <h2 className="text-4xl font-black text-slate-50 uppercase tracking-tighter mb-4">Relatórios de Performance</h2>
               <p className="text-zinc-500 font-bold uppercase tracking-widest text-sm max-w-md mx-auto leading-loose">
-                Em breve você poderá gerenciar seu cardápio, fotos dos produtos e precificação dinâmica diretamente por aqui.
+                Módulo analítico em desenvolvimento. Em breve, gráficos de vendas e estatísticas estarão disponíveis aqui.
               </p>
-              <button className="mt-12 bg-zinc-800 hover:bg-zinc-700 text-zinc-100 font-black px-10 py-4 rounded-2xl text-[10px] uppercase tracking-[0.3em] transition-all border border-zinc-700">
-                Notificar Disponibilidade
-              </button>
             </motion.div>
           )}
         </AnimatePresence>
       </main>
+
+      {/* Add / Edit Product Modal */}
+      <AnimatePresence>
+        {showProductModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowProductModal(false)}
+              className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="relative w-full max-w-lg bg-zinc-900 border border-zinc-800 p-10 rounded-[2.5rem] shadow-2xl z-10"
+            >
+              <h2 className="text-3xl font-black text-slate-50 uppercase tracking-tighter mb-8">
+                {editingProduct ? 'Editar Produto' : 'Novo Produto'}
+              </h2>
+              <form onSubmit={handleSaveProduct} className="space-y-6">
+                <div>
+                  <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-2 block">Nome Original do Produto</label>
+                  <input 
+                    type="text" 
+                    required
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl py-4 px-6 text-sm font-bold text-zinc-100 focus:outline-none focus:border-cyan-500 transition-colors"
+                    value={newProduct.name}
+                    onChange={(e) => setNewProduct({...newProduct, name: e.target.value})}
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-2 block">Custo ao Cliente (R$)</label>
+                  <input 
+                    type="number" 
+                    step="0.01"
+                    min="0"
+                    required
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl py-4 px-6 text-sm font-bold text-zinc-100 focus:outline-none focus:border-cyan-500 transition-colors"
+                    value={newProduct.price}
+                    onChange={(e) => setNewProduct({...newProduct, price: e.target.value})}
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-2 block">Categoria</label>
+                  <select 
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl py-4 px-6 text-sm font-bold text-zinc-100 focus:outline-none focus:border-cyan-500 appearance-none transition-colors"
+                    value={newProduct.category}
+                    onChange={(e) => setNewProduct({...newProduct, category: e.target.value})}
+                  >
+                    {categories.map(c => (
+                      <option key={c.id} value={c.name}>{c.name}</option>
+                    ))}
+                    {categories.length === 0 && <option value="Geral">Geral</option>}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-2 block">Descrição dos Ingredientes / Conteúdo</label>
+                  <textarea 
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl py-4 px-6 text-sm font-bold text-zinc-100 focus:outline-none focus:border-cyan-500 h-24 resize-none transition-colors"
+                    value={newProduct.description}
+                    onChange={(e) => setNewProduct({...newProduct, description: e.target.value})}
+                  />
+                </div>
+
+                <div className="flex gap-4 pt-4">
+                  <button 
+                    type="button"
+                    onClick={() => setShowProductModal(false)}
+                    className="flex-1 py-4 bg-zinc-800 text-zinc-400 font-black uppercase tracking-widest text-xs rounded-2xl hover:text-zinc-200 transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                  <button 
+                    type="submit"
+                    className="flex-1 py-4 bg-cyan-500 text-slate-950 font-black uppercase tracking-widest text-xs rounded-2xl hover:bg-cyan-400 transition-colors shadow-lg shadow-cyan-500/20"
+                  >
+                    Salvar
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </Layout>
   );
 }
