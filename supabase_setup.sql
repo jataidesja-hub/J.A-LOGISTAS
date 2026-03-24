@@ -1,10 +1,11 @@
--- SCRIPT DE CONFIGURAÇÃO DO BANCO DE DATAS J.A LOGISTAS
+-- SCRIPT DE CONFIGURAÇÃO DO BANCO DE DATAS J.A LOGISTAS (V2 - IDEMPOTENTE)
 -- Copie e cole este código no "SQL Editor" do seu painel Supabase e clique em "Run"
 
 -- 1. Tabela de Lojas (Stores)
 CREATE TABLE IF NOT EXISTS stores (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   name text NOT NULL,
+  owner text, -- Nome do lojista
   description text,
   logo text,
   rating float DEFAULT 5.0,
@@ -18,6 +19,7 @@ CREATE TABLE IF NOT EXISTS stores (
   owner_id uuid REFERENCES auth.users(id),
   created_at timestamp WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
+
 
 -- 1.1 Tabela de Categorias
 CREATE TABLE IF NOT EXISTS categories (
@@ -51,19 +53,44 @@ CREATE TABLE IF NOT EXISTS orders (
   created_at timestamp WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- 4. Inserir Dados Iniciais (Exemplo)
-INSERT INTO stores (name, description, logo, category, delivery_time, rating) 
-VALUES 
-('Pizzaria do Chef', 'As melhores pizzas artesanais da região.', '🍕', 'Pizza', '30-45', 4.8),
-('Burger & Co', 'Hambúrgueres suculentos e selecionados.', '🍔', 'Lanches', '20-35', 4.9);
-
--- 5. Habilitar Políticas de Segurança (Row Level Security)
--- Por enquanto, habilitamos acesso público apenas para leitura (Select)
+-- 4. Habilitar Políticas de Segurança (Row Level Security)
 ALTER TABLE stores ENABLE ROW LEVEL SECURITY;
 ALTER TABLE products ENABLE ROW LEVEL SECURITY;
 ALTER TABLE orders ENABLE ROW LEVEL SECURITY;
+ALTER TABLE categories ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Acesso público de leitura para lojas" ON stores FOR SELECT USING (true);
-CREATE POLICY "Acesso público de leitura para produtos" ON products FOR SELECT USING (true);
-CREATE POLICY "Acesso público para criação de pedidos" ON orders FOR INSERT WITH CHECK (true);
-CREATE POLICY "Acesso público de leitura para pedidos" ON orders FOR SELECT USING (true);
+-- 5. Criar Políticas (Removendo se já existirem para evitar erro)
+DO $$ 
+BEGIN
+    DROP POLICY IF EXISTS "Acesso público de leitura para lojas" ON stores;
+    CREATE POLICY "Acesso público de leitura para lojas" ON stores FOR SELECT USING (true);
+    
+    DROP POLICY IF EXISTS "Acesso público de leitura para produtos" ON products;
+    CREATE POLICY "Acesso público de leitura para produtos" ON products FOR SELECT USING (true);
+    
+    DROP POLICY IF EXISTS "Acesso público para criação de pedidos" ON orders;
+    CREATE POLICY "Acesso público para criação de pedidos" ON orders FOR INSERT WITH CHECK (true);
+    
+    DROP POLICY IF EXISTS "Acesso público de leitura para pedidos" ON orders;
+    CREATE POLICY "Acesso público de leitura para pedidos" ON orders FOR SELECT USING (true);
+
+    DROP POLICY IF EXISTS "Acesso público de leitura para categorias" ON categories;
+    CREATE POLICY "Acesso público de leitura para categorias" ON categories FOR SELECT USING (true);
+
+    DROP POLICY IF EXISTS "Admin full access for stores" ON stores;
+    CREATE POLICY "Admin full access for stores" ON stores FOR ALL USING (true);
+
+    DROP POLICY IF EXISTS "Admin full access for categories" ON categories;
+    CREATE POLICY "Admin full access for categories" ON categories FOR ALL USING (true);
+END $$;
+
+-- 6. Garantir que todas as colunas necessárias existam (em caso de migração)
+ALTER TABLE stores ADD COLUMN IF NOT EXISTS owner text;
+ALTER TABLE stores ADD COLUMN IF NOT EXISTS email text;
+ALTER TABLE stores ADD COLUMN IF NOT EXISTS password text;
+ALTER TABLE stores ADD COLUMN IF NOT EXISTS category text;
+ALTER TABLE stores ADD COLUMN IF NOT EXISTS status text DEFAULT 'Ativo';
+
+-- Se 'email' já existe mas não é UNIQUE, podemos adicionar se desejado (opcional)
+-- ALTER TABLE stores ADD CONSTRAINT stores_email_unique UNIQUE (email);
+
