@@ -4,6 +4,7 @@ import StoreDetails from './pages/customer/StoreDetails';
 import OwnerDashboard from './pages/owner/OwnerDashboard';
 import OwnerLogin from './pages/owner/OwnerLogin';
 import AdminDashboard from './pages/admin/AdminDashboard';
+import AdminLogin from './pages/admin/AdminLogin';
 
 function App() {
   return (
@@ -19,9 +20,11 @@ function App() {
 
         {/* Admin Routes */}
         <Route path="/admin" element={<AdminDashboard />} />
+        <Route path="/admin/login" element={<AdminLogin />} />
       </Routes>
     </BrowserRouter>
   );
 }
+
 
 export default App;

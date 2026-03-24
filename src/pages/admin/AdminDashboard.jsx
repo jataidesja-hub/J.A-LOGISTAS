@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Store, Users, Eye, Search, BarChart3, Plus, ExternalLink, Settings, TrendingUp, DollarSign, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Store, Users, Eye, Search, BarChart3, Plus, ExternalLink, Settings, TrendingUp, DollarSign, ArrowUpRight, ArrowDownRight, LogOut, ShoppingBag, UserCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Layout from '../../components/Layout';
 import { supabase } from '../../lib/supabaseClient';
@@ -17,6 +18,19 @@ export default function AdminDashboard() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedStore, setSelectedStore] = useState(null);
   const [newStore, setNewStore] = useState({ name: '', owner: '', email: '', password: '', category: 'Geral' });
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const isAdmin = localStorage.getItem('admin_session');
+    if (!isAdmin) {
+      navigate('/admin/login');
+    }
+  }, [navigate]);
+
+  const handleLogout = () => {
+    localStorage.removeItem('admin_session');
+    navigate('/admin/login');
+  };
 
   // Stats calculate dynamically from stores data
   const totalStores = stores.length;
@@ -150,6 +164,24 @@ export default function AdminDashboard() {
             <motion.button 
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
+              onClick={() => navigate('/')}
+              className="bg-zinc-800/80 hover:bg-zinc-800 text-zinc-400 font-black px-4 py-3 rounded-2xl text-[10px] uppercase tracking-widest transition-all flex items-center gap-2 border border-zinc-900"
+            >
+              <ShoppingBag size={14} />
+              Ver Loja
+            </motion.button>
+            <motion.button 
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => navigate('/lojista/login')}
+              className="bg-zinc-800/80 hover:bg-zinc-800 text-zinc-400 font-black px-4 py-3 rounded-2xl text-[10px] uppercase tracking-widest transition-all flex items-center gap-2 border border-zinc-900"
+            >
+              <UserCircle size={14} />
+              Área Lojista
+            </motion.button>
+            <motion.button 
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
               onClick={() => setShowCategoryModal(true)}
               className="bg-zinc-800 hover:bg-zinc-700 text-zinc-100 font-black px-6 py-3 rounded-2xl text-xs uppercase tracking-widest transition-all flex items-center gap-3 border border-zinc-700"
             >
@@ -165,7 +197,17 @@ export default function AdminDashboard() {
               <Plus size={18} strokeWidth={3} />
               Novo Lojista
             </motion.button>
+            <motion.button 
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.9 }}
+              onClick={handleLogout}
+              className="bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 p-3 rounded-2xl transition-all border border-rose-500/20"
+              title="Sair do Terminal"
+            >
+              <LogOut size={20} strokeWidth={3} />
+            </motion.button>
           </div>
+
         </header>
 
         {/* Dashboard Content */}
