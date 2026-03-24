@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Store, Package, Users, Settings, LogOut, CheckCircle, Clock, TrendingUp, DollarSign, Plus, ArrowRight, Trash2, Edit, Save, Info } from 'lucide-react';
+import { Store, Package, Users, Settings, LogOut, CheckCircle, Clock, TrendingUp, DollarSign, Plus, ArrowRight, Trash2, Edit, Save, Info, Image as ImageIcon, Upload, X } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import Layout from '../../components/Layout';
@@ -15,7 +15,9 @@ export default function OwnerDashboard() {
   
   const [showProductModal, setShowProductModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
-  const [newProduct, setNewProduct] = useState({ name: '', description: '', price: '', category: '' });
+  const [newProduct, setNewProduct] = useState({ name: '', description: '', price: '', category: '', image: null });
+  const [imagePreview, setImagePreview] = useState(null);
+  const [uploading, setUploading] = useState(false);
 
   const [storeSettings, setStoreSettings] = useState({ name: '', description: '', category: '', email: '', password: '' });
 
@@ -71,32 +73,58 @@ export default function OwnerDashboard() {
 
   const handleSaveProduct = async (e) => {
     e.preventDefault();
+    setUploading(true);
     try {
+      let imageUrl = editingProduct?.image_url || null;
+
+      // Upload image if selected
+      if (newProduct.image) {
+        const file = newProduct.image;
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${Math.random().toString(36).substring(2)}.${fileExt}`;
+        const filePath = `${store.id}/${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('product-images')
+          .upload(filePath, file);
+
+        if (uploadError) throw uploadError;
+
+        const { data: { publicUrl } } = supabase.storage
+          .from('product-images')
+          .getPublicUrl(filePath);
+        
+        imageUrl = publicUrl;
+      }
+
+      const productData = {
+        name: newProduct.name,
+        description: newProduct.description,
+        price: parseFloat(newProduct.price),
+        category: newProduct.category || (categories.length > 0 ? categories[0].name : 'Geral'),
+        image_url: imageUrl
+      };
+
       if (editingProduct) {
-        const { error } = await supabase.from('products').update({
-          name: newProduct.name,
-          description: newProduct.description,
-          price: parseFloat(newProduct.price),
-          category: newProduct.category || (categories.length > 0 ? categories[0].name : 'Geral')
-        }).eq('id', editingProduct.id);
+        const { error } = await supabase.from('products').update(productData).eq('id', editingProduct.id);
         if (error) throw error;
       } else {
         const { error } = await supabase.from('products').insert([{
-          store_id: store.id,
-          name: newProduct.name,
-          description: newProduct.description,
-          price: parseFloat(newProduct.price),
-          category: newProduct.category || (categories.length > 0 ? categories[0].name : 'Geral')
+          ...productData,
+          store_id: store.id
         }]);
         if (error) throw error;
       }
       
       setShowProductModal(false);
       setEditingProduct(null);
-      setNewProduct({ name: '', description: '', price: '', category: '' });
+      setNewProduct({ name: '', description: '', price: '', category: '', image: null });
+      setImagePreview(null);
       fetchOwnerData();
     } catch (err) {
       alert('Erro ao salvar produto: ' + err.message);
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -315,7 +343,8 @@ export default function OwnerDashboard() {
                 <button 
                   onClick={() => {
                      setEditingProduct(null);
-                     setNewProduct({ name: '', description: '', price: '', category: categories[0]?.name || 'Geral' });
+                     setNewProduct({ name: '', description: '', price: '', category: categories[0]?.name || 'Geral', image: null });
+                     setImagePreview(null);
                      setShowProductModal(true);
                   }}
                   className="bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black px-6 py-3 rounded-xl text-[10px] uppercase tracking-widest transition-all flex items-center gap-2 border-t border-cyan-300 shadow-xl shadow-cyan-500/20"
@@ -333,21 +362,28 @@ export default function OwnerDashboard() {
                   </div>
                 ) : (
                   products.map(product => (
-                    <div key={product.id} className="bg-zinc-900/40 backdrop-blur-xl border border-zinc-800 rounded-[2rem] p-8 shadow-2xl flex flex-col justify-between group hover:border-cyan-500/30 transition-colors">
+                    <div key={product.id} className="bg-zinc-900/40 backdrop-blur-xl border border-zinc-800 rounded-[2rem] p-8 shadow-2xl flex flex-col justify-between group hover:border-cyan-500/30 transition-colors overflow-hidden">
+                      {product.image_url && (
+                        <div className="h-48 w-full -mt-8 -mx-8 mb-6 overflow-hidden relative group-hover:scale-105 transition-transform duration-500">
+                          <img src={product.image_url} alt={product.name} className="w-full h-full object-cover" />
+                          <div className="absolute inset-0 bg-gradient-to-t from-zinc-900 via-transparent to-transparent opacity-60" />
+                        </div>
+                      )}
                       <div>
                         <div className="flex justify-between items-start mb-6">
                            <span className="text-[10px] font-black uppercase tracking-widest text-cyan-500 bg-cyan-500/10 px-3 py-1 rounded-md border border-cyan-500/20">{product.category || 'Geral'}</span>
                            <span className="text-2xl font-black text-emerald-400">R$ {parseFloat(product.price).toFixed(2)}</span>
                         </div>
                         <h3 className="text-2xl font-black text-slate-50 uppercase tracking-tight mb-3">{product.name}</h3>
-                        <p className="text-zinc-400 text-sm font-medium line-clamp-3 leading-relaxed">{product.description || 'Produto sem descrição.'}</p>
+                        <p className="text-zinc-400 text-sm font-medium line-clamp-2 leading-relaxed">{product.description || 'Produto sem descrição.'}</p>
                       </div>
                       <div className="mt-8 pt-6 border-t border-zinc-800/50 flex gap-3">
                         <button 
                           onClick={() => {
                             setEditingProduct(product);
-                            setNewProduct({ name: product.name, description: product.description || '', price: product.price, category: product.category });
-                            setShowProductModal(true);
+                             setNewProduct({ name: product.name, description: product.description || '', price: product.price, category: product.category, image: null });
+                             setImagePreview(product.image_url || null);
+                             setShowProductModal(true);
                           }}
                           className="flex-1 py-3 text-xs font-black uppercase tracking-widest text-zinc-400 bg-zinc-950/80 rounded-xl hover:text-cyan-400 border border-zinc-800 hover:border-cyan-500/30 transition-all flex items-center justify-center gap-2"
                         >
@@ -510,6 +546,44 @@ export default function OwnerDashboard() {
                   />
                 </div>
 
+                <div>
+                  <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-3 block">Foto do Produto</label>
+                  <div className="relative group">
+                    {imagePreview ? (
+                      <div className="relative w-full h-48 rounded-2xl overflow-hidden border-2 border-zinc-800 border-dashed group-hover:border-cyan-500/50 transition-colors">
+                        <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
+                        <button 
+                          type="button"
+                          onClick={() => { setImagePreview(null); setNewProduct({...newProduct, image: null}); }}
+                          className="absolute top-2 right-2 bg-rose-500 text-white p-2 rounded-full hover:bg-rose-600 transition-colors shadow-lg"
+                        >
+                          <X size={16} />
+                        </button>
+                      </div>
+                    ) : (
+                      <label className="flex flex-col items-center justify-center w-full h-48 rounded-2xl border-2 border-dashed border-zinc-800 hover:border-cyan-500/50 hover:bg-cyan-500/5 transition-all cursor-pointer group">
+                        <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                          <Upload className="w-8 h-8 text-zinc-500 mb-3 group-hover:text-cyan-500 transition-colors" />
+                          <p className="text-xs text-zinc-500 font-black uppercase tracking-widest group-hover:text-cyan-400 font-bold">Clique para enviar foto</p>
+                          <p className="text-[10px] text-zinc-600 mt-2 font-bold">PNG, JPG ou JPEG (Máx. 5MB)</p>
+                        </div>
+                        <input 
+                          type="file" 
+                          className="hidden" 
+                          accept="image/*"
+                          onChange={(e) => {
+                            const file = e.target.files[0];
+                            if (file) {
+                              setNewProduct({...newProduct, image: file});
+                              setImagePreview(URL.createObjectURL(file));
+                            }
+                          }} 
+                        />
+                      </label>
+                    )}
+                  </div>
+                </div>
+
                 <div className="flex gap-4 pt-4">
                   <button 
                     type="button"
@@ -520,9 +594,10 @@ export default function OwnerDashboard() {
                   </button>
                   <button 
                     type="submit"
-                    className="flex-1 py-4 bg-cyan-500 text-slate-950 font-black uppercase tracking-widest text-xs rounded-2xl hover:bg-cyan-400 transition-colors shadow-lg shadow-cyan-500/20"
+                    disabled={uploading}
+                    className={`flex-1 py-4 bg-cyan-500 text-slate-950 font-black uppercase tracking-widest text-xs rounded-2xl hover:bg-cyan-400 transition-colors shadow-lg shadow-cyan-500/20 ${uploading ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
-                    Salvar
+                    {uploading ? 'Salvando...' : 'Salvar'}
                   </button>
                 </div>
               </form>

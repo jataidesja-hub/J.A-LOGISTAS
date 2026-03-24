@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS products (
   description text,
   price numeric NOT NULL,
   category text,
+  image_url text, -- URL da foto do produto
   created_at timestamp WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
