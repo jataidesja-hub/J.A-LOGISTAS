@@ -77,6 +77,12 @@ BEGIN
     DROP POLICY IF EXISTS "Acesso público de leitura para categorias" ON categories;
     CREATE POLICY "Acesso público de leitura para categorias" ON categories FOR SELECT USING (true);
 
+    DROP POLICY IF EXISTS "Admin full access for products" ON products;
+    CREATE POLICY "Admin full access for products" ON products FOR ALL USING (true);
+
+    DROP POLICY IF EXISTS "Admin full access for orders" ON orders;
+    CREATE POLICY "Admin full access for orders" ON orders FOR ALL USING (true);
+
     DROP POLICY IF EXISTS "Admin full access for stores" ON stores;
     CREATE POLICY "Admin full access for stores" ON stores FOR ALL USING (true);
 
@@ -84,13 +90,29 @@ BEGIN
     CREATE POLICY "Admin full access for categories" ON categories FOR ALL USING (true);
 END $$;
 
--- 6. Garantir que todas as colunas necessárias existam (em caso de migração)
+-- 6. Configuração de Storage (Opcional - Criar balde de imagens)
+-- Copie esta parte se ainda não criou o bucket 'product-images' no painel
+/*
+INSERT INTO storage.buckets (id, name, public) 
+VALUES ('product-images', 'product-images', true)
+ON CONFLICT (id) DO NOTHING;
+
+CREATE POLICY "Acesso público de leitura para fotos" ON storage.objects FOR SELECT USING (bucket_id = 'product-images');
+CREATE POLICY "Acesso público para upload de fotos" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'product-images');
+CREATE POLICY "Acesso público para deletar fotos" ON storage.objects FOR DELETE USING (bucket_id = 'product-images');
+*/
+
+-- 7. Garantir que todas as colunas necessárias existam (em caso de migração)
 ALTER TABLE stores ADD COLUMN IF NOT EXISTS owner text;
 ALTER TABLE stores ADD COLUMN IF NOT EXISTS email text;
 ALTER TABLE stores ADD COLUMN IF NOT EXISTS password text;
 ALTER TABLE stores ADD COLUMN IF NOT EXISTS category text;
 ALTER TABLE stores ADD COLUMN IF NOT EXISTS status text DEFAULT 'Ativo';
+ALTER TABLE stores ADD COLUMN IF NOT EXISTS description text;
+ALTER TABLE stores ADD COLUMN IF NOT EXISTS revenue numeric DEFAULT 0;
+ALTER TABLE stores ADD COLUMN IF NOT EXISTS customers integer DEFAULT 0;
 
--- Se 'email' já existe mas não é UNIQUE, podemos adicionar se desejado (opcional)
--- ALTER TABLE stores ADD CONSTRAINT stores_email_unique UNIQUE (email);
+ALTER TABLE products ADD COLUMN IF NOT EXISTS image_url text;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS category text;
+
 
