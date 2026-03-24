@@ -4,35 +4,69 @@ import { motion, AnimatePresence } from 'framer-motion';
 import Layout from '../../components/Layout';
 import { supabase } from '../../lib/supabaseClient';
 
-const MOCK_STORES = [
-  { id: 1, name: 'Pizzaria do Chef', owner: 'Chef Silva', email: 'chef@loja.com', customers: 1250, revenue: 15400, status: 'Ativo', trend: '+12%' },
-  { id: 2, name: 'Burger & Co', owner: 'Marcos Burg', email: 'contato@burgerco.com', customers: 890, revenue: 8200, status: 'Ativo', trend: '+5%' },
-  { id: 3, name: 'Açaí Tropical', owner: 'Carla Açaí', email: 'carla@acaitropical.com', customers: 430, revenue: 3100, status: 'Inativo', trend: '-2%' },
-];
+const MOCK_STORES = [];
 
 export default function AdminDashboard() {
   const [searchTerm, setSearchTerm] = useState('');
   const [stores, setStores] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [newStore, setNewStore] = useState({ name: '', owner: '', email: '', category: 'Geral' });
+
+  // Stats calculate dynamically from stores data
+  const totalStores = stores.length;
+  const totalCustomers = stores.reduce((acc, s) => acc + (s.customers || 0), 0);
+  const totalRevenue = stores.reduce((acc, s) => acc + (s.revenue || 0), 0);
+
+  async function fetchAdminData() {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase.from('stores').select('*').order('created_at', { ascending: false });
+      if (error) throw error;
+      setStores(data || []);
+    } catch (err) {
+      console.error('Error fetching stores:', err);
+    } finally {
+      setLoading(false);
+    }
+  }
 
   useEffect(() => {
-     async function fetchAdminData() {
-        try {
-           const { data } = await supabase.from('stores').select('*');
-           if (data && data.length > 0) setStores(data); else setStores(MOCK_STORES);
-        } catch (err) {
-           setStores(MOCK_STORES);
-        } finally {
-           setLoading(false);
-        }
-     }
-     fetchAdminData();
+    fetchAdminData();
   }, []);
 
+  const handleAddStore = async (e) => {
+    e.preventDefault();
+    try {
+      const { error } = await supabase.from('stores').insert([
+        { 
+          name: newStore.name, 
+          owner: newStore.owner, 
+          email: newStore.email, 
+          category: newStore.category,
+          logo: '🏪',
+          rating: 5.0,
+          status: 'Ativo'
+        }
+      ]);
+      if (error) throw error;
+      setShowAddModal(false);
+      setNewStore({ name: '', owner: '', email: '', category: 'Geral' });
+      fetchAdminData();
+    } catch (err) {
+      alert('Erro ao adicionar lojista: ' + err.message);
+    }
+  };
+
+  const filteredStores = stores.filter(s => 
+    s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (s.owner && s.owner.toLowerCase().includes(searchTerm.toLowerCase()))
+  );
+
   const stats = [
-    { label: 'Total de Lojas', value: '24', icon: Store, color: 'emerald', trend: '+3 este mês', trendUp: true },
-    { label: 'Clientes Ativos', value: '14.2k', icon: Users, color: 'cyan', trend: '+12%', trendUp: true },
-    { label: 'Faturamento Sistema', value: 'R$ 142k', icon: DollarSign, color: 'blue', trend: '-2%', trendUp: false },
+    { label: 'Total de Lojas', value: totalStores.toString(), icon: Store, color: 'emerald', trend: 'Lojas cadastradas', trendUp: true },
+    { label: 'Clientes Ativos', value: totalCustomers >= 1000 ? `${(totalCustomers/1000).toFixed(1)}k` : totalCustomers.toString(), icon: Users, color: 'cyan', trend: 'Total de acessos', trendUp: true },
+    { label: 'Faturamento Sistema', value: `R$ ${(totalRevenue/1000).toFixed(1)}k`, icon: DollarSign, color: 'blue', trend: 'Volume transacionado', trendUp: true },
   ];
 
   return (
@@ -69,6 +103,7 @@ export default function AdminDashboard() {
             <motion.button 
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
+              onClick={() => setShowAddModal(true)}
               className="bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black px-8 py-3 rounded-2xl text-xs uppercase tracking-widest transition-all flex items-center gap-3 shadow-2xl shadow-cyan-500/30 border-t border-cyan-300"
             >
               <Plus size={18} strokeWidth={3} />
@@ -141,47 +176,143 @@ export default function AdminDashboard() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-zinc-900/50">
-                  {stores.map((store) => (
-                    <tr key={store.id} className="group hover:bg-zinc-800/20 transition-all font-bold">
-                      <td className="p-8 pl-10 text-zinc-700 text-sm font-black">#{String(store.id).padStart(3, '0')}</td>
-                      <td className="p-8">
-                        <div className="text-lg font-black text-slate-50 group-hover:text-cyan-400 transition-colors uppercase tracking-tight">{store.name}</div>
-                        <div className="text-[10px] text-zinc-700 uppercase tracking-widest mt-1">NÍVEL PLATINUM</div>
-                      </td>
-                      <td className="p-8">
-                        <div className="text-zinc-300 text-sm uppercase tracking-tighter">{store.owner}</div>
-                        <div className="text-xs text-zinc-600 font-medium lowercase italic">{store.email}</div>
-                      </td>
-                      <td className="p-8 text-center">
-                        <div className="inline-flex justify-center items-center gap-2 bg-zinc-950 px-4 py-2 rounded-xl border border-zinc-800">
-                          <Eye size={14} className="text-cyan-500" strokeWidth={3} /> 
-                          <span className="text-slate-100 font-black">{store.customers}</span>
-                        </div>
-                      </td>
-                      <td className="p-8 text-right">
-                        <div className="text-emerald-400 text-xl font-black drop-shadow-lg">R$ {store.revenue.toLocaleString()}</div>
-                        <div className="text-[10px] text-emerald-900 font-black uppercase tracking-widest">{store.trend} GROWTH</div>
-                      </td>
-                      <td className="p-8 text-center">
-                        <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest ${store.status === 'Ativo' ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' : 'bg-rose-500/10 text-rose-500 border border-rose-500/20'}`}>
-                          {store.status}
-                        </span>
-                      </td>
-                      <td className="p-8 pr-10 text-center">
-                        <div className="flex justify-center gap-2">
-                           <button className="text-zinc-600 hover:text-cyan-400 transition-all p-3 bg-zinc-950/30 rounded-2xl hover:bg-cyan-500/10 border border-transparent hover:border-cyan-500/20" title="Control Console">
-                            <Settings size={20} strokeWidth={2.5} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                  {loading ? (
+                    <tr><td colSpan={7} className="p-20 text-center text-zinc-600 font-bold uppercase tracking-widest animate-pulse">Sincronizando com Supabase...</td></tr>
+                  ) : filteredStores.length === 0 ? (
+                    <tr><td colSpan={7} className="p-20 text-center text-zinc-600 font-bold uppercase tracking-widest text-sm">Nenhum lojista encontrado no banco de dados.</td></tr>
+                  ) : (
+                    filteredStores.map((store) => (
+                      <tr key={store.id} className="group hover:bg-zinc-800/20 transition-all font-bold">
+                        <td className="p-8 pl-10 text-zinc-700 text-sm font-black truncate max-w-[100px]">#{store.id.toString().slice(0, 5)}</td>
+                        <td className="p-8">
+                          <div className="text-lg font-black text-slate-50 group-hover:text-cyan-400 transition-colors uppercase tracking-tight">{store.name}</div>
+                          <div className="text-[10px] text-zinc-700 uppercase tracking-widest mt-1">{store.category || 'Nível Platina'}</div>
+                        </td>
+                        <td className="p-8">
+                          <div className="text-zinc-300 text-sm uppercase tracking-tighter">{store.owner || 'Sem Responsável'}</div>
+                          <div className="text-xs text-zinc-600 font-medium lowercase italic">{store.email || 'Email não cadastrado'}</div>
+                        </td>
+                        <td className="p-8 text-center">
+                          <div className="inline-flex justify-center items-center gap-2 bg-zinc-950 px-4 py-2 rounded-xl border border-zinc-800">
+                            <Eye size={14} className="text-cyan-500" strokeWidth={3} /> 
+                            <span className="text-slate-100 font-black">{store.customers || 0}</span>
+                          </div>
+                        </td>
+                        <td className="p-8 text-right">
+                          <div className="text-emerald-400 text-xl font-black drop-shadow-lg">R$ {(store.revenue || 0).toLocaleString()}</div>
+                          <div className="text-[10px] text-emerald-900 font-black uppercase tracking-widest">CRESCIMENTO</div>
+                        </td>
+                        <td className="p-8 text-center">
+                          <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest ${store.status === 'Ativo' ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' : 'bg-rose-500/10 text-rose-500 border border-rose-500/20'}`}>
+                            {store.status || 'Ativo'}
+                          </span>
+                        </td>
+                        <td className="p-8 pr-10 text-center">
+                          <div className="flex justify-center gap-2">
+                             <button className="text-zinc-600 hover:text-cyan-400 transition-all p-3 bg-zinc-950/30 rounded-2xl hover:bg-cyan-500/10 border border-transparent hover:border-cyan-500/20" title="Control Console">
+                              <Settings size={20} strokeWidth={2.5} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
           </motion.div>
         </div>
       </div>
+
+      {/* Add Store Modal */}
+      <AnimatePresence>
+        {showAddModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowAddModal(false)}
+              className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="relative w-full max-w-lg bg-zinc-900 border border-zinc-800 p-10 rounded-[2.5rem] shadow-2xl z-10"
+            >
+              <h2 className="text-3xl font-black text-slate-50 uppercase tracking-tighter mb-8">Novo Lojista</h2>
+              <form onSubmit={handleAddStore} className="space-y-6">
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-2 block">Nome da Empresa</label>
+                    <input 
+                      type="text" 
+                      required
+                      placeholder="EX: PIZZARIA DO CHEF"
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl py-4 px-6 text-sm font-bold text-zinc-100 focus:outline-none focus:border-cyan-500"
+                      value={newStore.name}
+                      onChange={(e) => setNewStore({...newStore, name: e.target.value})}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-2 block">Nome do Responsável</label>
+                    <input 
+                      type="text" 
+                      required
+                      placeholder="NOME COMPLETO"
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl py-4 px-6 text-sm font-bold text-zinc-100 focus:outline-none focus:border-cyan-500"
+                      value={newStore.owner}
+                      onChange={(e) => setNewStore({...newStore, owner: e.target.value})}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-2 block">Email de Contato</label>
+                    <input 
+                      type="email" 
+                      required
+                      placeholder="EMAIL@EXEMPLO.COM"
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl py-4 px-6 text-sm font-bold text-zinc-100 focus:outline-none focus:border-cyan-500"
+                      value={newStore.email}
+                      onChange={(e) => setNewStore({...newStore, email: e.target.value})}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-2 block">Categoria</label>
+                    <select 
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl py-4 px-6 text-sm font-bold text-zinc-100 focus:outline-none focus:border-cyan-500 appearance-none"
+                      value={newStore.category}
+                      onChange={(e) => setNewStore({...newStore, category: e.target.value})}
+                    >
+                      <option value="Pizza">Pizza</option>
+                      <option value="Lanches">Lanches</option>
+                      <option value="Japonesa">Japonesa</option>
+                      <option value="Sobremesa">Sobremesa</option>
+                      <option value="Bebidas">Bebidas</option>
+                      <option value="Geral">Geral</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="flex gap-4 pt-6">
+                  <button 
+                    type="button"
+                    onClick={() => setShowAddModal(false)}
+                    className="flex-1 py-4 bg-zinc-800 text-zinc-400 font-black uppercase tracking-widest text-xs rounded-2xl hover:bg-zinc-750 transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                  <button 
+                    type="submit"
+                    className="flex-1 py-4 bg-cyan-500 text-slate-950 font-black uppercase tracking-widest text-xs rounded-2xl hover:bg-cyan-400 transition-colors shadow-xl shadow-cyan-500/20"
+                  >
+                    Confirmar Cadastro
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </Layout>
   );
 }
