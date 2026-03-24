@@ -9,11 +9,14 @@ const MOCK_STORES = [];
 export default function AdminDashboard() {
   const [searchTerm, setSearchTerm] = useState('');
   const [stores, setStores] = useState([]);
+  const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [newCategory, setNewCategory] = useState('');
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedStore, setSelectedStore] = useState(null);
-  const [newStore, setNewStore] = useState({ name: '', owner: '', email: '', category: 'Geral' });
+  const [newStore, setNewStore] = useState({ name: '', owner: '', email: '', password: '', category: 'Geral' });
 
   // Stats calculate dynamically from stores data
   const totalStores = stores.length;
@@ -23,11 +26,16 @@ export default function AdminDashboard() {
   async function fetchAdminData() {
     setLoading(true);
     try {
-      const { data, error } = await supabase.from('stores').select('*').order('created_at', { ascending: false });
-      if (error) throw error;
-      setStores(data || []);
+      const { data: storesData, error: storesError } = await supabase.from('stores').select('*').order('created_at', { ascending: false });
+      const { data: catData, error: catError } = await supabase.from('categories').select('*').order('name');
+      
+      if (storesError) throw storesError;
+      if (catError) throw catError;
+      
+      setStores(storesData || []);
+      setCategories(catData || []);
     } catch (err) {
-      console.error('Error fetching stores:', err);
+      console.error('Error fetching data:', err);
     } finally {
       setLoading(false);
     }
@@ -45,6 +53,7 @@ export default function AdminDashboard() {
           name: newStore.name, 
           owner: newStore.owner, 
           email: newStore.email, 
+          password: newStore.password,
           category: newStore.category,
           logo: '🏪',
           rating: 5.0,
@@ -53,10 +62,24 @@ export default function AdminDashboard() {
       ]);
       if (error) throw error;
       setShowAddModal(false);
-      setNewStore({ name: '', owner: '', email: '', category: 'Geral' });
+      setNewStore({ name: '', owner: '', email: '', password: '', category: 'Geral' });
       fetchAdminData();
     } catch (err) {
       alert('Erro ao adicionar lojista: ' + err.message);
+    }
+  };
+
+  const handleAddCategory = async (e) => {
+    e.preventDefault();
+    if (!newCategory) return;
+    try {
+      const { error } = await supabase.from('categories').insert([{ name: newCategory }]);
+      if (error) throw error;
+      setNewCategory('');
+      setShowCategoryModal(false);
+      fetchAdminData();
+    } catch (err) {
+      alert('Erro ao adicionar categoria: ' + err.message);
     }
   };
 
@@ -124,16 +147,15 @@ export default function AdminDashboard() {
           </div>
 
           <div className="flex flex-wrap gap-4 w-full md:w-auto">
-            <div className="relative flex-1 md:flex-none">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-600" size={18} />
-              <input 
-                type="text" 
-                placeholder="PROCURAR LOJISTA..." 
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="bg-zinc-900/80 border border-zinc-800 rounded-2xl py-3 pl-12 pr-6 text-xs font-black uppercase tracking-widest text-zinc-100 placeholder:text-zinc-700 focus:outline-none focus:border-cyan-500 transition-all w-full md:w-72 shadow-xl"
-              />
-            </div>
+            <motion.button 
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => setShowCategoryModal(true)}
+              className="bg-zinc-800 hover:bg-zinc-700 text-zinc-100 font-black px-6 py-3 rounded-2xl text-xs uppercase tracking-widest transition-all flex items-center gap-3 border border-zinc-700"
+            >
+              <TrendingUp size={18} />
+              Categorias
+            </motion.button>
             <motion.button 
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
@@ -314,31 +336,46 @@ export default function AdminDashboard() {
                       onChange={(e) => setNewStore({...newStore, owner: e.target.value})}
                     />
                   </div>
-                  <div>
-                    <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-2 block">Email de Contato</label>
-                    <input 
-                      type="email" 
-                      required
-                      placeholder="EMAIL@EXEMPLO.COM"
-                      className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl py-4 px-6 text-sm font-bold text-zinc-100 focus:outline-none focus:border-cyan-500"
-                      value={newStore.email}
-                      onChange={(e) => setNewStore({...newStore, email: e.target.value})}
-                    />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-2 block">Email de Acesso</label>
+                      <input 
+                        type="email" 
+                        required
+                        placeholder="EMAIL@LOJA.COM"
+                        className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl py-4 px-6 text-sm font-bold text-zinc-100 focus:outline-none focus:border-cyan-500"
+                        value={newStore.email}
+                        onChange={(e) => setNewStore({...newStore, email: e.target.value})}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-2 block">Senha de Acesso</label>
+                      <input 
+                        type="password" 
+                        required
+                        placeholder="••••••••"
+                        className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl py-4 px-6 text-sm font-bold text-zinc-100 focus:outline-none focus:border-cyan-500"
+                        value={newStore.password}
+                        onChange={(e) => setNewStore({...newStore, password: e.target.value})}
+                      />
+                    </div>
                   </div>
                   <div>
                     <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-2 block">Categoria</label>
-                    <select 
-                      className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl py-4 px-6 text-sm font-bold text-zinc-100 focus:outline-none focus:border-cyan-500 appearance-none"
-                      value={newStore.category}
-                      onChange={(e) => setNewStore({...newStore, category: e.target.value})}
-                    >
-                      <option value="Pizza">Pizza</option>
-                      <option value="Lanches">Lanches</option>
-                      <option value="Japonesa">Japonesa</option>
-                      <option value="Sobremesa">Sobremesa</option>
-                      <option value="Bebidas">Bebidas</option>
-                      <option value="Geral">Geral</option>
-                    </select>
+                    <div className="relative">
+                      <select 
+                        className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl py-4 px-6 text-sm font-bold text-zinc-100 focus:outline-none focus:border-cyan-500 appearance-none"
+                        value={newStore.category}
+                        onChange={(e) => setNewStore({...newStore, category: e.target.value})}
+                      >
+                        {categories.map(c => (
+                          <option key={c.id} value={c.name}>{c.name}</option>
+                        ))}
+                      </select>
+                      <div className="absolute right-6 top-1/2 -translate-y-1/2 pointer-events-none text-zinc-600">
+                        <TrendingUp size={16} />
+                      </div>
+                    </div>
                   </div>
                 </div>
                 <div className="flex gap-4 pt-6">
@@ -403,6 +440,16 @@ export default function AdminDashboard() {
                     />
                   </div>
                   <div>
+                    <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-2 block">Email / Login</label>
+                    <input 
+                      type="email" 
+                      required
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl py-4 px-6 text-sm font-bold text-zinc-100 focus:outline-none focus:border-cyan-500"
+                      value={selectedStore.email}
+                      onChange={(e) => setSelectedStore({...selectedStore, email: e.target.value})}
+                    />
+                  </div>
+                  <div>
                     <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-2 block">Status da Loja</label>
                     <select 
                       className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl py-4 px-6 text-sm font-bold text-zinc-100 focus:outline-none focus:border-cyan-500 appearance-none"
@@ -431,6 +478,75 @@ export default function AdminDashboard() {
                   </button>
                 </div>
               </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Categories Management Modal */}
+      <AnimatePresence>
+        {showCategoryModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowCategoryModal(false)}
+              className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="relative w-full max-w-lg bg-zinc-900 border border-zinc-800 p-10 rounded-[2.5rem] shadow-2xl z-10"
+            >
+              <h2 className="text-3xl font-black text-slate-50 uppercase tracking-tighter mb-8 flex items-center gap-4">
+                Administrar <span className="text-cyan-500">Categorias</span>
+              </h2>
+              
+              <form onSubmit={handleAddCategory} className="mb-10">
+                <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-2 block">Nova Categoria</label>
+                <div className="flex gap-2">
+                  <input 
+                    type="text" 
+                    required
+                    placeholder="EX: PIZZA, LANCHES..."
+                    className="flex-1 bg-zinc-950 border border-zinc-800 rounded-2xl py-4 px-6 text-sm font-bold text-zinc-100 focus:outline-none focus:border-cyan-500 uppercase"
+                    value={newCategory}
+                    onChange={(e) => setNewCategory(e.target.value)}
+                  />
+                  <button type="submit" className="p-4 bg-emerald-500 text-slate-950 rounded-2xl hover:bg-emerald-400 transition-all font-black shadow-xl shadow-emerald-500/20">
+                    <Plus size={24} strokeWidth={3} />
+                  </button>
+                </div>
+              </form>
+
+              <div className="space-y-3 max-h-64 overflow-y-auto pr-2 custom-scrollbar">
+                <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-4 block underline decoration-cyan-500">Listagem de Categorias</p>
+                {categories.map(cat => (
+                  <div key={cat.id} className="flex justify-between items-center bg-zinc-950 p-4 rounded-xl border border-zinc-800 group hover:border-zinc-700 transition-all">
+                    <span className="text-sm font-bold text-slate-300 uppercase tracking-widest">{cat.name}</span>
+                    <button 
+                      onClick={async () => {
+                        if(confirm('Remover categoria?')) {
+                          await supabase.from('categories').delete().eq('id', cat.id);
+                          fetchAdminData();
+                        }
+                      }}
+                      className="text-zinc-700 hover:text-rose-500 transition-colors p-1"
+                    >
+                      <Plus size={16} className="rotate-45" strokeWidth={3} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              <button 
+                onClick={() => setShowCategoryModal(false)}
+                className="w-full mt-10 py-4 bg-zinc-900 text-zinc-500 font-black uppercase tracking-widest text-xs rounded-2xl border border-zinc-800 hover:text-zinc-300 transition-colors"
+              >
+                Voltar ao Painel
+              </button>
             </motion.div>
           </div>
         )}

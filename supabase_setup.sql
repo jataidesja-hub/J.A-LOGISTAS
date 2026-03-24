@@ -10,12 +10,23 @@ CREATE TABLE IF NOT EXISTS stores (
   rating float DEFAULT 5.0,
   category text,
   delivery_time text,
+  email text UNIQUE,
+  password text, -- Apenas para teste, o ideal é usar Auth
   revenue numeric DEFAULT 0,
   customers integer DEFAULT 0,
   status text DEFAULT 'Ativo',
   owner_id uuid REFERENCES auth.users(id),
   created_at timestamp WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
+
+-- 1.1 Tabela de Categorias
+CREATE TABLE IF NOT EXISTS categories (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  name text UNIQUE NOT NULL,
+  created_at timestamp WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+INSERT INTO categories (name) VALUES ('Pizza'), ('Lanches'), ('Japonesa'), ('Sobremesa'), ('Bebidas'), ('Geral') ON CONFLICT DO NOTHING;
 
 -- 2. Tabela de Produtos (Products)
 CREATE TABLE IF NOT EXISTS products (
