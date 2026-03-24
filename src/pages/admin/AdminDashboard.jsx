@@ -11,6 +11,8 @@ export default function AdminDashboard() {
   const [stores, setStores] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [selectedStore, setSelectedStore] = useState(null);
   const [newStore, setNewStore] = useState({ name: '', owner: '', email: '', category: 'Geral' });
 
   // Stats calculate dynamically from stores data
@@ -55,6 +57,38 @@ export default function AdminDashboard() {
       fetchAdminData();
     } catch (err) {
       alert('Erro ao adicionar lojista: ' + err.message);
+    }
+  };
+
+  const handleEditStore = async (e) => {
+    e.preventDefault();
+    if (!selectedStore) return;
+    try {
+      const { error } = await supabase.from('stores').update({
+        name: selectedStore.name,
+        owner: selectedStore.owner,
+        email: selectedStore.email,
+        category: selectedStore.category,
+        status: selectedStore.status
+      }).eq('id', selectedStore.id);
+      
+      if (error) throw error;
+      setShowEditModal(false);
+      setSelectedStore(null);
+      fetchAdminData();
+    } catch (err) {
+      alert('Erro ao editar lojista: ' + err.message);
+    }
+  };
+
+  const handleDeleteStore = async (id) => {
+    if (!confirm('Você tem certeza que deseja EXCLUIR este lojista? Esta ação é irreversível.')) return;
+    try {
+      const { error } = await supabase.from('stores').delete().eq('id', id);
+      if (error) throw error;
+      fetchAdminData();
+    } catch (err) {
+      alert('Erro ao excluir lojista: ' + err.message);
     }
   };
 
@@ -209,8 +243,22 @@ export default function AdminDashboard() {
                         </td>
                         <td className="p-8 pr-10 text-center">
                           <div className="flex justify-center gap-2">
-                             <button className="text-zinc-600 hover:text-cyan-400 transition-all p-3 bg-zinc-950/30 rounded-2xl hover:bg-cyan-500/10 border border-transparent hover:border-cyan-500/20" title="Control Console">
+                             <button 
+                               onClick={() => {
+                                 setSelectedStore({...store});
+                                 setShowEditModal(true);
+                               }}
+                               className="text-zinc-600 hover:text-cyan-400 transition-all p-3 bg-zinc-950/30 rounded-2xl hover:bg-cyan-500/10 border border-transparent hover:border-cyan-500/20" 
+                               title="Editar Lojista"
+                             >
                               <Settings size={20} strokeWidth={2.5} />
+                            </button>
+                            <button 
+                               onClick={() => handleDeleteStore(store.id)}
+                               className="text-zinc-600 hover:text-rose-500 transition-all p-3 bg-zinc-950/30 rounded-2xl hover:bg-rose-500/10 border border-transparent hover:border-rose-500/20" 
+                               title="Excluir Lojista"
+                             >
+                              <Users size={20} strokeWidth={2.5} className="rotate-45" />
                             </button>
                           </div>
                         </td>
@@ -306,6 +354,80 @@ export default function AdminDashboard() {
                     className="flex-1 py-4 bg-cyan-500 text-slate-950 font-black uppercase tracking-widest text-xs rounded-2xl hover:bg-cyan-400 transition-colors shadow-xl shadow-cyan-500/20"
                   >
                     Confirmar Cadastro
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Edit Store Modal */}
+      <AnimatePresence>
+        {showEditModal && selectedStore && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowEditModal(false)}
+              className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="relative w-full max-w-lg bg-zinc-900 border border-zinc-800 p-10 rounded-[2.5rem] shadow-2xl z-10"
+            >
+              <h2 className="text-3xl font-black text-slate-50 uppercase tracking-tighter mb-8">Editar Lojista</h2>
+              <form onSubmit={handleEditStore} className="space-y-6">
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-2 block">Nome da Empresa</label>
+                    <input 
+                      type="text" 
+                      required
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl py-4 px-6 text-sm font-bold text-zinc-100 focus:outline-none focus:border-cyan-500"
+                      value={selectedStore.name}
+                      onChange={(e) => setSelectedStore({...selectedStore, name: e.target.value})}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-2 block">Responsável</label>
+                    <input 
+                      type="text" 
+                      required
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl py-4 px-6 text-sm font-bold text-zinc-100 focus:outline-none focus:border-cyan-500"
+                      value={selectedStore.owner}
+                      onChange={(e) => setSelectedStore({...selectedStore, owner: e.target.value})}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-2 block">Status da Loja</label>
+                    <select 
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl py-4 px-6 text-sm font-bold text-zinc-100 focus:outline-none focus:border-cyan-500 appearance-none"
+                      value={selectedStore.status}
+                      onChange={(e) => setSelectedStore({...selectedStore, status: e.target.value})}
+                    >
+                      <option value="Ativo">Ativo</option>
+                      <option value="Inativo">Inativo</option>
+                      <option value="Suspenso">Suspenso</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="flex gap-4 pt-6">
+                  <button 
+                    type="button"
+                    onClick={() => setShowEditModal(false)}
+                    className="flex-1 py-4 bg-zinc-800 text-zinc-400 font-black uppercase tracking-widest text-xs rounded-2xl"
+                  >
+                    Cancelar
+                  </button>
+                  <button 
+                    type="submit"
+                    className="flex-1 py-4 bg-emerald-500 text-slate-950 font-black uppercase tracking-widest text-xs rounded-2xl hover:bg-emerald-400 transition-colors shadow-xl shadow-emerald-500/20"
+                  >
+                    Salvar Alterações
                   </button>
                 </div>
               </form>
