@@ -16,16 +16,27 @@ export default function OwnerLogin() {
     setLoading(true);
     
     try {
-      // Logic for supabase login would go here
-      // For now, simulating a small delay before navigating
-      await new Promise(r => setTimeout(r, 1500));
+      const { data, error } = await supabase
+        .from('stores')
+        .select('*')
+        .eq('email', email)
+        .eq('password', password)
+        .single();
+
+      if (error || !data) {
+        throw new Error('Credenciais inválidas');
+      }
+
+      // Store session data
+      localStorage.setItem('owner_session', JSON.stringify(data));
       navigate('/lojista/dashboard');
     } catch (err) {
-      alert('Erro ao entrar. Verifique suas credenciais.');
+      alert('Erro ao entrar: ' + err.message);
     } finally {
       setLoading(false);
     }
   };
+
 
   return (
     <Layout className="flex items-center justify-center p-6 bg-zinc-950 overflow-hidden relative">

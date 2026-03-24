@@ -15,20 +15,38 @@ export default function OwnerDashboard() {
   const [activeTab, setActiveTab] = useState('orders');
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [store, setStore] = useState(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
      async function fetchOwnerData() {
+        const sessionStore = JSON.parse(localStorage.getItem('owner_session'));
+        if (!sessionStore) {
+           navigate('/lojista/login');
+           return;
+        }
+        setStore(sessionStore);
+
         try {
-           const { data } = await supabase.from('orders').select('*');
-           if (data && data.length > 0) setOrders(data); else setOrders(MOCK_ORDERS);
+           const { data: ordersData, error: ordersError } = await supabase
+              .from('orders')
+              .select('*')
+              .eq('store_id', sessionStore.id)
+              .order('created_at', { ascending: false });
+
+           if (ordersData && ordersData.length > 0) {
+              setOrders(ordersData);
+           } else {
+              setOrders([]); // No orders found
+           }
         } catch (err) {
-           setOrders(MOCK_ORDERS);
+           console.error('Error fetching data:', err);
         } finally {
            setLoading(false);
         }
      }
      fetchOwnerData();
-  }, []);
+  }, [navigate]);
 
   const menuItems = [
     { id: 'orders', label: 'Pedidos Ativos', icon: Clock },
@@ -47,9 +65,12 @@ export default function OwnerDashboard() {
               <Store size={28} strokeWidth={3} />
             </div>
             <div>
-              <h2 className="font-black text-slate-50 uppercase tracking-tighter text-xl">Pizzaria <span className="text-emerald-500">Chef</span></h2>
-              <p className="text-[10px] text-zinc-600 font-bold uppercase tracking-[0.3em]">Ambiente Lojista</p>
+              <h2 className="font-black text-slate-50 uppercase tracking-tighter text-xl">
+                {store?.name?.split(' ')[0] || 'Seu'} <span className="text-emerald-500">{store?.name?.split(' ')[1] || 'Dashboard'}</span>
+              </h2>
+              <p className="text-[10px] text-zinc-600 font-bold uppercase tracking-[0.3em]">{store?.category || 'Ambiente Lojista'}</p>
             </div>
+
           </Link>
         </div>
 
@@ -94,13 +115,14 @@ export default function OwnerDashboard() {
           <div className="flex gap-6">
             <div className="bg-zinc-900/50 backdrop-blur-xl border border-zinc-800 px-10 py-6 rounded-[2rem] shadow-2xl shadow-black/40 relative overflow-hidden group">
                <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/5 blur-2xl group-hover:bg-emerald-500/10 transition-colors" />
-               <span className="text-zinc-600 text-[10px] font-black uppercase tracking-[0.2em] mb-1 block">Bruto Hoje</span>
-               <p className="text-emerald-400 font-black text-3xl tracking-tighter">R$ 1.254,80</p>
+               <span className="text-zinc-600 text-[10px] font-black uppercase tracking-[0.2em] mb-1 block">Faturamento Total</span>
+               <p className="text-emerald-400 font-black text-3xl tracking-tighter">R$ {(store?.revenue || 0).toLocaleString()}</p>
             </div>
-            <div className="bg-zinc-900/50 backdrop-blur-xl border border-zinc-800 px-10 py-6 rounded-[2rem] shadow-2xl shadow-black/40">
-               <span className="text-zinc-600 text-[10px] font-black uppercase tracking-[0.2em] mb-1 block">Traffic Score</span>
-               <p className="text-cyan-400 font-black text-3xl tracking-tighter">142 hits</p>
+            <div className="bg-zinc-900/50 backdrop-blur-xl border border-zinc-800 px-10 py-6 rounded-[2rem] shadow-2xl shadow-black/40 relative overflow-hidden group">
+               <span className="text-zinc-600 text-[10px] font-black uppercase tracking-[0.2em] mb-1 block">Clientes Ativos</span>
+               <p className="text-cyan-400 font-black text-3xl tracking-tighter">{store?.customers || 0} hits</p>
             </div>
+
           </div>
         </header>
 

@@ -105,9 +105,11 @@ export default function AdminDashboard() {
         name: selectedStore.name,
         owner: selectedStore.owner,
         email: selectedStore.email,
-        category: selectedStore.category,
+        password: selectedStore.password, // Added password
+        category: selectedStore.category, // Added category
         status: selectedStore.status
       }).eq('id', selectedStore.id);
+
       
       if (error) throw error;
       setShowEditModal(false);
@@ -503,7 +505,33 @@ export default function AdminDashboard() {
                       <option value="Suspenso">Suspenso</option>
                     </select>
                   </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-2 block">Categoria</label>
+                      <select 
+                        className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl py-4 px-6 text-sm font-bold text-zinc-100 focus:outline-none focus:border-cyan-500 appearance-none"
+                        value={selectedStore.category}
+                        onChange={(e) => setSelectedStore({...selectedStore, category: e.target.value})}
+                      >
+                        {categories.map(c => (
+                          <option key={c.id} value={c.name}>{c.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-2 block">Nova Senha (opcional)</label>
+                      <input 
+                        type="text" 
+                        placeholder="ALTRAR SENHA"
+                        className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl py-4 px-6 text-sm font-bold text-zinc-100 focus:outline-none focus:border-cyan-500"
+                        value={selectedStore.password || ''}
+                        onChange={(e) => setSelectedStore({...selectedStore, password: e.target.value})}
+                      />
+                    </div>
+                  </div>
                 </div>
+
                 <div className="flex gap-4 pt-6">
                   <button 
                     type="button"
