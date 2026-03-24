@@ -8,25 +8,22 @@ import { supabase } from '../../lib/supabaseClient';
 export default function StoreList() {
   const [searchTerm, setSearchTerm] = useState('');
   const [stores, setStores] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [selectedCategory, setSelectedCategory] = useState('Todos');
   const [loading, setLoading] = useState(true);
-
-  // Mock data as fallback
-  const MOCK_STORES = [
-    { id: 1, name: 'Pizzaria do Chef', description: 'As melhores pizzas artesanais da região com massa de fermentação natural.', logo: '🍕', rating: 4.8, category: 'Pizza', deliveryTime: '30-45' },
-    { id: 2, name: 'Burger & Co', description: 'Hambúrgueres suculentos grelhados no fogo com ingredientes selecionados.', logo: '🍔', rating: 4.9, category: 'Lanches', deliveryTime: '20-35' },
-    { id: 3, name: 'Açaí Tropical', description: 'O açaí mais gelado e refrescante com acompanhamentos ilimitados.', logo: '🍇', rating: 4.7, category: 'Sobremesa', deliveryTime: '15-25' },
-    { id: 4, name: 'Sushi Zen', description: 'Culinária japonesa moderna com peixes frescos e ambiente exclusivo.', logo: '🍱', rating: 4.9, category: 'Japonesa', deliveryTime: '40-60' },
-  ];
 
   useEffect(() => {
     async function fetchStores() {
       try {
-        const { data, error } = await supabase.from('stores').select('*');
+        const { data, error } = await supabase.from('stores').select('*').eq('status', 'Ativo');
         if (error) throw error;
-        if (data && data.length > 0) setStores(data);
-        else setStores(MOCK_STORES);
+        setStores(data || []);
+
+        const { data: catData } = await supabase.from('categories').select('*').order('name');
+        setCategories(catData || []);
       } catch (err) {
-        setStores(MOCK_STORES);
+        console.error('Error fetching stores:', err);
+        setStores([]);
       } finally {
         setLoading(false);
       }
@@ -34,10 +31,12 @@ export default function StoreList() {
     fetchStores();
   }, []);
 
-  const filteredStores = stores.filter(s => 
-    s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    s.category?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredStores = stores.filter(s => {
+    const matchesSearch = s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      s.category?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesCategory = selectedCategory === 'Todos' || s.category === selectedCategory;
+    return matchesSearch && matchesCategory;
+  });
 
   return (
     <Layout>
@@ -76,10 +75,11 @@ export default function StoreList() {
           </div>
 
           <div className="flex flex-wrap gap-3">
-            {['Todos', 'Pizza', 'Lanches', 'Japonesa', 'Brasileira', 'Bebidas'].map(cat => (
+            {['Todos', ...categories.map(c => c.name)].map(cat => (
               <button 
                 key={cat}
-                className="px-6 py-2 bg-zinc-900 border border-zinc-800 rounded-full text-sm font-bold text-zinc-400 hover:text-emerald-400 hover:border-emerald-500/30 transition-all hover:bg-emerald-500/5"
+                onClick={() => setSelectedCategory(cat)}
+                className={`px-6 py-2 border rounded-full text-sm font-bold transition-all ${selectedCategory === cat ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-emerald-400 hover:border-emerald-500/30 hover:bg-emerald-500/5'}`}
               >
                 {cat}
               </button>

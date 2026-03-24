@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import Layout from '../../components/Layout';
 import { supabase } from '../../lib/supabaseClient';
 
-const MOCK_STORES = [];
+
 
 export default function AdminDashboard() {
   const [searchTerm, setSearchTerm] = useState('');

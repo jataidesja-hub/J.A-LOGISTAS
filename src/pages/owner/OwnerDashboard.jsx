@@ -1,15 +1,11 @@
 import { useState, useEffect } from 'react';
 import { Store, Package, Users, Settings, LogOut, CheckCircle, Clock, TrendingUp, DollarSign, Plus, ArrowRight } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import Layout from '../../components/Layout';
 import { supabase } from '../../lib/supabaseClient';
 
-const MOCK_ORDERS = [
-  { id: 101, customer: 'João Silva', items: '2x Pizza de Calabresa G', total: 131.8, type: 'Entrega', status: 'pending', time: '10 min atrás' },
-  { id: 102, customer: 'Maria Oliveira', items: '1x Hamburguer Artesanal', total: 35.0, type: 'Retirada', status: 'preparing', time: '25 min atrás' },
-  { id: 103, customer: 'Carlos Mendes', items: '3x Açaí 500ml', total: 45.0, type: 'Entrega', status: 'completed', time: '1 hr atrás' },
-];
+
 
 export default function OwnerDashboard() {
   const [activeTab, setActiveTab] = useState('orders');

@@ -14,14 +14,7 @@ export default function StoreDetails() {
   const [deliveryType, setDeliveryType] = useState('delivery');
   const [loading, setLoading] = useState(true);
 
-  // Mock fallbacks
-  const MOCK_STORE = { id: 1, name: 'Pizzaria do Chef', rating: 4.8, category: 'Pizza', deliveryTime: '30-45' };
-  const MOCK_PRODUCTS = [
-    { id: 1, name: 'Pizza de Calabresa G', price: 65.9, description: 'Molho artesanal, queijo mussarela, calabresa fatiada, cebola e orégano premium.' },
-    { id: 2, name: 'Pizza Marguerita M', price: 48.0, description: 'Molho de tomate fresco pelati, manjericão orgânico, queijo branco e fios de azeite extra virgem.' },
-    { id: 3, name: 'Focaccia Romana', price: 29.0, description: 'Massa especial crocante com alecrim fresco e flor de sal.' },
-    { id: 4, name: 'Coca Cola 2L', price: 14.0, description: 'Refrigerante gelado premium (embalagem reciclável).' },
-  ];
+
 
   useEffect(() => {
     async function fetchData() {
@@ -29,11 +22,12 @@ export default function StoreDetails() {
         const { data: storeData } = await supabase.from('stores').select('*').eq('id', storeId).single();
         const { data: prodData } = await supabase.from('products').select('*').eq('store_id', storeId);
         
-        if (storeData) setStore(storeData); else setStore(MOCK_STORE);
-        if (prodData) setProducts(prodData); else setProducts(MOCK_PRODUCTS);
+        setStore(storeData || null);
+        setProducts(prodData || []);
       } catch (err) {
-        setStore(MOCK_STORE);
-        setProducts(MOCK_PRODUCTS);
+        console.error('Error fetching store:', err);
+        setStore(null);
+        setProducts([]);
       } finally {
         setLoading(false);
       }
