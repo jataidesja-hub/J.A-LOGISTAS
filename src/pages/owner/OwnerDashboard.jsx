@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Store, Package, Users, Settings, LogOut, CheckCircle, Clock, TrendingUp, DollarSign, Plus, ArrowRight, Trash2, Edit, Save, Info, Image as ImageIcon, Upload, X, Phone, MessageSquare } from 'lucide-react';
+import { Store, Package, Users, Settings, LogOut, CheckCircle, Clock, TrendingUp, DollarSign, Plus, ArrowRight, Trash2, Edit, Save, Info, Image as ImageIcon, Upload, X, Phone, MessageSquare, Shield } from 'lucide-react';
+
 
 import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -70,7 +71,34 @@ export default function OwnerDashboard() {
 
   useEffect(() => {
      fetchOwnerData();
+
+     // Real-time subscription for new orders
+     const sessionStore = JSON.parse(localStorage.getItem('owner_session'));
+     if (sessionStore?.id) {
+       const channel = supabase
+         .channel('orders-realtime')
+         .on(
+           'postgres_changes',
+           {
+             event: 'INSERT',
+             schema: 'public',
+             table: 'orders',
+             filter: `store_id=eq.${sessionStore.id}`,
+           },
+           (payload) => {
+             console.log('Novo pedido recebido!', payload);
+             setOrders((prev) => [payload.new, ...prev]);
+             // Tocar um som opcionalmente ou mostrar aviso
+           }
+         )
+         .subscribe();
+
+       return () => {
+         supabase.removeChannel(channel);
+       };
+     }
   }, [navigate]);
+
 
   const handleSaveProduct = async (e) => {
     e.preventDefault();
