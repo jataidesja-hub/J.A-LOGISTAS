@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Store, Package, Users, Settings, LogOut, CheckCircle, Clock, TrendingUp, DollarSign, Plus, ArrowRight, Trash2, Edit, Save, Info, Image as ImageIcon, Upload, X, Phone, MessageSquare, Shield } from 'lucide-react';
+import { Store, Package, Users, Settings, LogOut, CheckCircle, Clock, TrendingUp, DollarSign, Plus, ArrowRight, Trash2, Edit, Save, Info, Image as ImageIcon, Upload, X, Phone, MessageSquare, Shield, MapPin, Sparkles } from 'lucide-react';
 
 
 import { Link, useNavigate } from 'react-router-dom';
