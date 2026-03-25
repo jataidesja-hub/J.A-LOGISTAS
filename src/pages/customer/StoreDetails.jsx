@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, ShoppingCart, Send, MapPin, Star, Clock, Info } from 'lucide-react';
+import { ArrowLeft, ShoppingCart, Send, MapPin, Star, Clock, Info, CheckCircle, User, Phone, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Layout from '../../components/Layout';
 import ProductCard from '../../components/ProductCard';
 import { supabase } from '../../lib/supabaseClient';
+
 
 export default function StoreDetails() {
   const { storeId } = useParams();
@@ -13,6 +14,11 @@ export default function StoreDetails() {
   const [cart, setCart] = useState({});
   const [deliveryType, setDeliveryType] = useState('delivery');
   const [loading, setLoading] = useState(true);
+  const [customerName, setCustomerName] = useState('');
+  const [customerWhatsapp, setCustomerWhatsapp] = useState('');
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
 
 
 
@@ -63,11 +69,44 @@ export default function StoreDetails() {
 
   const handleFinishOrder = async () => {
     if (cartItems.length === 0) return;
-    
-    // In a real app, send this to Supabase orders table
-    alert(`🛸 Pedido enviado!\nTotal: R$ ${total.toFixed(2)}\nObrigado por comprar conosco!`);
-    setCart({});
+    if (!customerName || !customerWhatsapp) {
+      alert('Por favor, preencha seu nome e WhatsApp para continuar.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const orderData = {
+        store_id: storeId,
+        customer_name: customerName,
+        customer_whatsapp: customerWhatsapp,
+        items: cartItems.map(item => ({
+          id: item.id,
+          name: item.name,
+          quantity: item.quantity,
+          price: item.price
+        })),
+        total: total,
+        delivery_type: deliveryType,
+        status: 'pending'
+      };
+
+      const { data, error } = await supabase.from('orders').insert([orderData]).select();
+      
+      if (error) throw error;
+
+      setCart({});
+      setCustomerName('');
+      setCustomerWhatsapp('');
+      setShowSuccessModal(true);
+    } catch (err) {
+      console.error('Error placing order:', err);
+      alert('Erro ao enviar pedido: ' + err.message);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
+
 
   if (loading) return <Layout><div className="flex items-center justify-center min-h-screen font-black text-2xl uppercase tracking-tighter text-emerald-500 animate-pulse">Carregando Vitrine...</div></Layout>;
 
@@ -175,7 +214,30 @@ export default function StoreDetails() {
                   ))}
                 </div>
 
-                <div className="px-8 space-y-2 mb-8">
+                <div className="px-8 space-y-4 mb-8">
+                  <div className="space-y-4">
+                    <div className="relative">
+                      <User size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" />
+                      <input 
+                        type="text" 
+                        placeholder="Seu Nome" 
+                        value={customerName}
+                        onChange={(e) => setCustomerName(e.target.value)}
+                        className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl py-4 pl-12 pr-6 text-sm font-bold text-zinc-100 focus:outline-none focus:border-emerald-500 transition-colors"
+                      />
+                    </div>
+                    <div className="relative">
+                      <Phone size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" />
+                      <input 
+                        type="tel" 
+                        placeholder="WhatsApp (ex: 11999999999)" 
+                        value={customerWhatsapp}
+                        onChange={(e) => setCustomerWhatsapp(e.target.value)}
+                        className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl py-4 pl-12 pr-6 text-sm font-bold text-zinc-100 focus:outline-none focus:border-emerald-500 transition-colors"
+                      />
+                    </div>
+                  </div>
+
                   <div className="flex gap-2 p-1.5 bg-zinc-950 rounded-2xl border border-zinc-800/50">
                     <button 
                       onClick={() => setDeliveryType('delivery')}
@@ -192,6 +254,7 @@ export default function StoreDetails() {
                   </div>
                 </div>
 
+
                 <div className="px-8 pb-8 pt-6 border-t border-zinc-800 bg-zinc-950/20">
                   <div className="flex justify-between items-end mb-8">
                     <div className="space-y-1">
@@ -206,17 +269,57 @@ export default function StoreDetails() {
                     whileHover={{ scale: 1.02, y: -2 }}
                     whileTap={{ scale: 0.98 }}
                     onClick={handleFinishOrder}
-                    className="group-buy w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-6 rounded-[2rem] flex items-center justify-center gap-3 transition-all shadow-2xl shadow-emerald-500/30 active:translate-y-0.5 border-t-4 border-emerald-400"
+                    disabled={isSubmitting}
+                    className={`group-buy w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-6 rounded-[2rem] flex items-center justify-center gap-3 transition-all shadow-2xl shadow-emerald-500/30 active:translate-y-0.5 border-t-4 border-emerald-400 ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
                     <Send size={24} strokeWidth={3} className="group-hover/btn:translate-x-1 transition-transform" />
-                    <span className="text-xl uppercase tracking-tighter">Enviar Pedido</span>
+                    <span className="text-xl uppercase tracking-tighter">{isSubmitting ? 'Enviando...' : 'Enviar Pedido'}</span>
                   </motion.button>
+
                 </div>
               </div>
             </motion.div>
           )}
         </AnimatePresence>
       </main>
+
+      <AnimatePresence>
+        {showSuccessModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowSuccessModal(false)}
+              className="absolute inset-0 bg-black/90 backdrop-blur-xl"
+            />
+            <motion.div 
+              initial={{ scale: 0.8, opacity: 0, y: 50 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.8, opacity: 0, y: 50 }}
+              className="relative w-full max-w-sm bg-zinc-900 border border-zinc-800 rounded-[3rem] p-12 text-center shadow-2xl shadow-emerald-500/10"
+            >
+              <div className="w-24 h-24 bg-emerald-500/10 rounded-full flex items-center justify-center mx-auto mb-8 border border-emerald-500/20 shadow-2xl shadow-emerald-500/10">
+                <CheckCircle className="text-emerald-500" size={48} strokeWidth={2.5} />
+              </div>
+              <h2 className="text-3xl font-black text-slate-50 uppercase tracking-tighter mb-4 leading-none">
+                Pedido <span className="text-emerald-500">Confirmado!</span>
+              </h2>
+              <p className="text-zinc-500 font-bold uppercase tracking-widest text-[10px] mb-10 leading-relaxed">
+                Agora o lojista irá preparar <br /> sua entrega com carinho.
+              </p>
+              
+              <button 
+                onClick={() => setShowSuccessModal(false)}
+                className="w-full bg-zinc-800 hover:bg-zinc-700 text-slate-200 font-black py-5 rounded-[1.5rem] uppercase tracking-tighter transition-all border border-zinc-700 shadow-xl"
+              >
+                Entendido, obrigado!
+              </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </Layout>
+
   );
 }

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Store, Package, Users, Settings, LogOut, CheckCircle, Clock, TrendingUp, DollarSign, Plus, ArrowRight, Trash2, Edit, Save, Info, Image as ImageIcon, Upload, X } from 'lucide-react';
+import { Store, Package, Users, Settings, LogOut, CheckCircle, Clock, TrendingUp, DollarSign, Plus, ArrowRight, Trash2, Edit, Save, Info, Image as ImageIcon, Upload, X, Phone, MessageSquare } from 'lucide-react';
+
 import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import Layout from '../../components/Layout';
@@ -139,7 +140,45 @@ export default function OwnerDashboard() {
     }
   };
 
+  const updateOrderStatus = async (orderId, newStatus) => {
+    try {
+      const { error } = await supabase
+        .from('orders')
+        .update({ status: newStatus })
+        .eq('id', orderId);
+      if (error) throw error;
+      fetchOwnerData();
+    } catch (err) {
+      alert('Erro ao atualizar pedido: ' + err.message);
+    }
+  };
+
+  const sendWhatsAppStatus = (order) => {
+    const rawPhone = order.customer_whatsapp;
+    if (!rawPhone) {
+      alert('Número de WhatsApp não disponível para este pedido.');
+      return;
+    }
+    
+    // Clean phone number (remove non-digits, and ensure it has country code)
+    let phone = rawPhone.replace(/\D/g, '');
+    if (phone.length === 11) phone = '55' + phone;
+
+    let message = '';
+    if (order.status === 'pending') {
+      message = `Olá ${order.customer_name}! Recebemos seu pedido #${order.id.slice(0,5)} e já vamos começar a preparar! 🚀`;
+    } else if (order.status === 'preparing') {
+      message = `Olá ${order.customer_name}! Seu pedido #${order.id.slice(0,5)} está pronto e ${order.delivery_type === 'delivery' ? 'saindo para entrega' : 'disponível para retirada'}! ✅`;
+    } else {
+      message = `Olá ${order.customer_name}! Seu pedido #${order.id.slice(0,5)} foi finalizado. Esperamos que goste! ❤️`;
+    }
+
+    const encodedMessage = encodeURIComponent(message);
+    window.open(`https://wa.me/${phone}?text=${encodedMessage}`, '_blank');
+  };
+
   const handleUpdateSettings = async (e) => {
+
     e.preventDefault();
     try {
       const { error } = await supabase.from('stores').update({
@@ -280,10 +319,29 @@ export default function OwnerDashboard() {
                         <span className="bg-zinc-950 text-zinc-500 px-3 py-1 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] border border-zinc-800">
                           {order.delivery_type === 'delivery' ? 'Entrega' : 'Retirada'}
                         </span>
+                        {order.customer_whatsapp && (
+                          <div className="flex items-center gap-2 bg-emerald-500/10 text-emerald-400 px-3 py-1.5 rounded-xl border border-emerald-500/20">
+                            <Phone size={12} />
+                            <span className="text-[10px] font-black">{order.customer_whatsapp}</span>
+                          </div>
+                        )}
                       </div>
-                      <p className="text-zinc-400 text-lg font-medium tracking-tight bg-zinc-950/50 p-4 rounded-2xl border border-zinc-900 shadow-inner">
-                        {typeof order.items === 'string' ? order.items : 'Ver Detalhes do Pedido...'}
-                      </p>
+
+                      <div className="text-zinc-400 text-lg font-medium tracking-tight bg-zinc-950/50 p-4 rounded-2xl border border-zinc-900 shadow-inner">
+                        {Array.isArray(order.items) ? (
+                          <div className="space-y-1">
+                            {order.items.map((item, idx) => (
+                              <div key={idx} className="flex items-center gap-2 text-sm">
+                                <span className="text-emerald-500 font-black">{item.quantity}x</span>
+                                <span className="text-zinc-200 uppercase tracking-tighter font-bold">{item.name}</span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p>{typeof order.items === 'string' ? order.items : 'Ver Detalhes do Pedido...'}</p>
+                        )}
+                      </div>
+
                       <p className="text-zinc-600 text-[10px] font-black uppercase tracking-[0.3em] flex items-center gap-2">
                         <Clock size={12} strokeWidth={3} className="text-cyan-500" />
                         Criado às {new Date(order.created_at).toLocaleTimeString('pt-BR')}
@@ -298,29 +356,48 @@ export default function OwnerDashboard() {
                       
                       <div className="flex items-center gap-4">
                         {order.status === 'pending' && (
-                          <motion.button 
-                            whileHover={{ scale: 1.05 }}
-                            whileTap={{ scale: 0.95 }}
-                            className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black px-10 py-5 rounded-[1.5rem] text-xs uppercase tracking-widest transition-all shadow-2xl shadow-emerald-500/20 border-t-2 border-emerald-300"
-                          >
-                            Aceitar Pedido
-                          </motion.button>
+                          <div className="flex gap-2">
+                             <motion.button 
+                              whileHover={{ scale: 1.05 }}
+                              whileTap={{ scale: 0.95 }}
+                              onClick={() => {
+                                updateOrderStatus(order.id, 'preparing');
+                                sendWhatsAppStatus(order);
+                              }}
+                              className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black px-8 py-5 rounded-[1.5rem] text-xs uppercase tracking-widest transition-all shadow-2xl shadow-emerald-500/20 border-t-2 border-emerald-300 flex items-center gap-2"
+                            >
+                              Aceitar e Notificar <MessageSquare size={16} />
+                            </motion.button>
+                          </div>
                         )}
                         {order.status === 'preparing' && (
                           <motion.button 
                             whileHover={{ scale: 1.05 }}
                             whileTap={{ scale: 0.95 }}
-                            className="bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black px-10 py-5 rounded-[1.5rem] text-xs uppercase tracking-widest transition-all shadow-2xl shadow-cyan-500/20 border-t-2 border-cyan-300"
+                            onClick={() => {
+                              updateOrderStatus(order.id, 'completed');
+                              sendWhatsAppStatus(order);
+                            }}
+                            className="bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black px-8 py-5 rounded-[1.5rem] text-xs uppercase tracking-widest transition-all shadow-2xl shadow-cyan-500/20 border-t-2 border-cyan-300 flex items-center gap-2"
                           >
-                            Finalizar Produção
+                            Finalizar e Notificar <MessageSquare size={16} />
                           </motion.button>
                         )}
                         {order.status === 'completed' && (
-                          <span className="flex items-center gap-3 text-emerald-500 text-xs font-black uppercase tracking-widest bg-emerald-500/5 px-8 py-5 rounded-[1.5rem] border border-emerald-500/10">
-                            <CheckCircle size={20} strokeWidth={3} /> Despachado
-                          </span>
+                          <div className="flex gap-3">
+                            <span className="flex items-center gap-3 text-emerald-500 text-xs font-black uppercase tracking-widest bg-emerald-500/5 px-8 py-5 rounded-[1.5rem] border border-emerald-500/10">
+                              <CheckCircle size={20} strokeWidth={3} /> Despachado
+                            </span>
+                            <button 
+                              onClick={() => sendWhatsAppStatus(order)}
+                              className="p-5 bg-zinc-800 text-zinc-400 rounded-[1.5rem] hover:text-emerald-400 transition-colors border border-zinc-700"
+                            >
+                              <MessageSquare size={20} />
+                            </button>
+                          </div>
                         )}
                       </div>
+
                     </div>
                   </motion.div>
                 ))}
