@@ -21,7 +21,20 @@ export default function OwnerDashboard() {
   const [imagePreview, setImagePreview] = useState(null);
   const [uploading, setUploading] = useState(false);
 
-  const [storeSettings, setStoreSettings] = useState({ name: '', description: '', category: '', email: '', password: '' });
+  const [storeSettings, setStoreSettings] = useState({ 
+    name: '', 
+    description: '', 
+    category: '', 
+    email: '', 
+    password: '',
+    primary_color: '#10b981',
+    background_color: '#09090b',
+    font_color: '#f8fafc',
+    address: '',
+    delivery_fee: 0,
+    logo: ''
+  });
+
 
   const navigate = useNavigate();
 
@@ -38,8 +51,15 @@ export default function OwnerDashboard() {
       description: sessionStore.description || '',
       category: sessionStore.category || '',
       email: sessionStore.email || '',
-      password: sessionStore.password || ''
+      password: sessionStore.password || '',
+      primary_color: sessionStore.primary_color || '#10b981',
+      background_color: sessionStore.background_color || '#09090b',
+      font_color: sessionStore.font_color || '#f8fafc',
+      address: sessionStore.address || '',
+      delivery_fee: sessionStore.delivery_fee || 0,
+      logo: sessionStore.logo || ''
     });
+
 
     try {
        const { data: ordersData } = await supabase
@@ -206,27 +226,60 @@ export default function OwnerDashboard() {
   };
 
   const handleUpdateSettings = async (e) => {
-
     e.preventDefault();
+    setUploading(true);
     try {
-      const { error } = await supabase.from('stores').update({
+      let logoUrl = storeSettings.logo;
+
+      // Handle logo upload if a new file is selected
+      if (storeSettings.logoFile) {
+        const file = storeSettings.logoFile;
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${store.id}-logo.${fileExt}`;
+        const filePath = `store-logos/${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('product-images') // Use existing bucket
+          .upload(filePath, file, { upsert: true });
+
+        if (uploadError) throw uploadError;
+
+        const { data: { publicUrl } } = supabase.storage
+          .from('product-images')
+          .getPublicUrl(filePath);
+        
+        logoUrl = publicUrl;
+      }
+
+      const updatedFields = {
         name: storeSettings.name,
         description: storeSettings.description,
         category: storeSettings.category,
         email: storeSettings.email,
-        password: storeSettings.password
-      }).eq('id', store.id);
+        password: storeSettings.password,
+        primary_color: storeSettings.primary_color,
+        background_color: storeSettings.background_color,
+        font_color: storeSettings.font_color,
+        address: storeSettings.address,
+        delivery_fee: parseFloat(storeSettings.delivery_fee),
+        logo: logoUrl
+      };
+
+      const { error } = await supabase.from('stores').update(updatedFields).eq('id', store.id);
 
       if (error) throw error;
 
-      const updatedStore = { ...store, ...storeSettings };
+      const updatedStore = { ...store, ...updatedFields };
       localStorage.setItem('owner_session', JSON.stringify(updatedStore));
       setStore(updatedStore);
       alert('Configurações da loja salvas com sucesso!');
     } catch (err) {
       alert('Erro ao atualizar configurações: ' + err.message);
+    } finally {
+      setUploading(false);
     }
   };
+
 
   const menuItems = [
     { id: 'orders', label: 'Pedidos Ativos', icon: Clock },
@@ -519,52 +572,100 @@ export default function OwnerDashboard() {
                    Configurações da Loja
                    <div className="h-1 w-32 bg-gradient-to-r from-blue-500 to-transparent rounded-full" />
                </h2>
-               
-               <form onSubmit={handleUpdateSettings} className="bg-zinc-900/40 backdrop-blur-xl border border-zinc-800 p-12 rounded-[3.5rem] shadow-2xl space-y-8">
-                 <div>
-                   <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-3 block ml-2">Nome da Loja Exibido aos Clientes</label>
-                   <input type="text" value={storeSettings.name} onChange={e => setStoreSettings({...storeSettings, name: e.target.value})} className="w-full bg-zinc-950 border-2 border-zinc-800 rounded-3xl py-5 px-8 text-sm font-bold text-zinc-100 focus:outline-none focus:border-blue-500 transition-colors shadow-inner" required />
-                 </div>
+                 <form onSubmit={handleUpdateSettings} className="bg-zinc-900/40 backdrop-blur-xl border border-zinc-800 p-12 rounded-[3.5rem] shadow-2xl space-y-12">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+                    <div className="space-y-8">
+                       <h3 className="text-xl font-black uppercase tracking-tighter text-slate-50 flex items-center gap-2">
+                         <Store size={22} className="text-emerald-500" /> Informações Básicas
+                       </h3>
+                       <div>
+                         <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-3 block ml-2">Nome da Loja</label>
+                         <input type="text" value={storeSettings.name} onChange={e => setStoreSettings({...storeSettings, name: e.target.value})} className="w-full bg-zinc-950 border-2 border-zinc-800 rounded-3xl py-5 px-8 text-sm font-bold text-zinc-100 focus:outline-none focus:border-emerald-500 transition-colors shadow-inner" required />
+                       </div>
+                       <div>
+                         <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-3 block ml-2">Logo da Loja</label>
+                         <div className="flex items-center gap-6 bg-zinc-950 p-4 rounded-3xl border-2 border-zinc-800 border-dashed">
+                           <div className="w-20 h-20 rounded-2xl bg-zinc-900 overflow-hidden border border-zinc-800 flex items-center justify-center text-4xl">
+                             {storeSettings.logo?.startsWith('http') ? (
+                               <img src={storeSettings.logo} className="w-full h-full object-cover" alt="Logo" />
+                             ) : (
+                               storeSettings.logo || '🏪'
+                             )}
+                           </div>
+                           <label className="flex-1 cursor-pointer">
+                              <span className="bg-zinc-800 hover:bg-zinc-700 text-[10px] font-black uppercase tracking-widest px-6 py-3 rounded-xl transition-all block text-center">Trocar Logo</span>
+                              <input type="file" className="hidden" accept="image/*" onChange={e => {
+                                const file = e.target.files[0];
+                                if (file) {
+                                  setStoreSettings({...storeSettings, logoFile: file, logo: URL.createObjectURL(file)});
+                                }
+                              }} />
+                           </label>
+                         </div>
+                       </div>
+                    </div>
 
-                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                   <div>
-                     <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-3 block ml-2">Tipo de Empreendimento</label>
-                     <select value={storeSettings.category} onChange={e => setStoreSettings({...storeSettings, category: e.target.value})} className="w-full bg-zinc-950 border-2 border-zinc-800 rounded-3xl py-5 px-8 text-sm font-bold text-zinc-100 focus:outline-none focus:border-blue-500 transition-colors appearance-none shadow-inner" required>
-                       {categories.map(c => (
-                         <option key={c.id} value={c.name}>{c.name}</option>
-                       ))}
-                       {categories.length === 0 && <option value="Geral">Geral</option>}
-                     </select>
-                   </div>
-                   <div>
-                     <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-3 block ml-2">Slogan / Descrição Curta</label>
-                     <input type="text" value={storeSettings.description} onChange={e => setStoreSettings({...storeSettings, description: e.target.value})} placeholder="Slogan da sua marca..." className="w-full bg-zinc-950 border-2 border-zinc-800 rounded-3xl py-5 px-8 text-sm font-bold text-zinc-100 focus:outline-none focus:border-blue-500 transition-colors shadow-inner" />
-                   </div>
-                 </div>
+                    <div className="space-y-8">
+                       <h3 className="text-xl font-black uppercase tracking-tighter text-slate-50 flex items-center gap-2">
+                         <MapPin size={22} className="text-cyan-500" /> Entrega e Localização
+                       </h3>
+                       <div>
+                         <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-3 block ml-2">Endereço da Loja</label>
+                         <input type="text" value={storeSettings.address} onChange={e => setStoreSettings({...storeSettings, address: e.target.value})} placeholder="Ex: Rua das Flores, 123" className="w-full bg-zinc-950 border-2 border-zinc-800 rounded-3xl py-5 px-8 text-sm font-bold text-zinc-100 focus:outline-none focus:border-cyan-500 transition-colors shadow-inner" />
+                       </div>
+                       <div>
+                         <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-3 block ml-2">Tarifa de Entrega (R$)</label>
+                         <input type="number" step="0.01" value={storeSettings.delivery_fee} onChange={e => setStoreSettings({...storeSettings, delivery_fee: e.target.value})} className="w-full bg-zinc-950 border-2 border-zinc-800 rounded-3xl py-5 px-8 text-sm font-bold text-zinc-100 focus:outline-none focus:border-cyan-500 transition-colors shadow-inner" />
+                       </div>
+                    </div>
+                  </div>
 
-                 <div className="p-8 border-2 border-dashed border-zinc-800 rounded-3xl bg-zinc-950/30">
-                   <h3 className="text-sm font-black uppercase tracking-widest text-zinc-400 mb-6 flex items-center gap-2">
-                     <Shield size={16} /> Autenticação e Acesso
-                   </h3>
-                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                     <div>
-                       <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-3 block ml-2">E-mail de Login Corporativo</label>
-                       <input type="email" value={storeSettings.email} onChange={e => setStoreSettings({...storeSettings, email: e.target.value})} className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl py-4 px-6 text-sm font-bold text-zinc-300 focus:outline-none focus:border-blue-500 transition-colors" required />
-                     </div>
-                     <div>
-                       <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-3 block ml-2">Nova Chave de Acesso (Senha)</label>
-                       <input type="text" value={storeSettings.password} onChange={e => setStoreSettings({...storeSettings, password: e.target.value})} className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl py-4 px-6 text-sm font-bold text-zinc-300 focus:outline-none focus:border-blue-500 transition-colors" required />
-                     </div>
-                   </div>
-                 </div>
-                 
-                 <div className="pt-6">
-                   <button type="submit" className="bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-500 hover:to-cyan-400 text-slate-50 font-black px-12 py-6 rounded-full text-sm uppercase tracking-widest transition-all shadow-2xl shadow-blue-500/20 flex items-center justify-center gap-3 w-full hover:scale-[1.01] active:scale-[0.99] border-t-2 border-white/10">
-                     <Save size={20} className="drop-shadow-md" />
-                     Efetivar Alterações Seguras
-                   </button>
-                 </div>
-               </form>
+                  <div className="pt-8 border-t border-zinc-800">
+                    <h3 className="text-xl font-black uppercase tracking-tighter text-slate-50 flex items-center gap-2 mb-8">
+                      <Sparkles size={22} className="text-yellow-400" /> Personalização de Marca (Visual)
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                       <div>
+                         <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-3 block ml-2">Cor Principal (Botões)</label>
+                         <div className="flex items-center gap-4 bg-zinc-950 p-2 rounded-2xl border-2 border-zinc-800 shadow-inner">
+                           <input type="color" value={storeSettings.primary_color} onChange={e => setStoreSettings({...storeSettings, primary_color: e.target.value})} className="w-12 h-12 rounded-xl bg-transparent border-none cursor-pointer" />
+                           <span className="text-xs font-mono font-bold text-zinc-400">{storeSettings.primary_color}</span>
+                         </div>
+                       </div>
+                       <div>
+                         <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-3 block ml-2">Cor de Fundo</label>
+                         <div className="flex items-center gap-4 bg-zinc-950 p-2 rounded-2xl border-2 border-zinc-800 shadow-inner">
+                           <input type="color" value={storeSettings.background_color} onChange={e => setStoreSettings({...storeSettings, background_color: e.target.value})} className="w-12 h-12 rounded-xl bg-transparent border-none cursor-pointer" />
+                           <span className="text-xs font-mono font-bold text-zinc-400">{storeSettings.background_color}</span>
+                         </div>
+                       </div>
+                       <div>
+                         <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-3 block ml-2">Cor da Fonte</label>
+                         <div className="flex items-center gap-4 bg-zinc-950 p-2 rounded-2xl border-2 border-zinc-800 shadow-inner">
+                           <input type="color" value={storeSettings.font_color} onChange={e => setStoreSettings({...storeSettings, font_color: e.target.value})} className="w-12 h-12 rounded-xl bg-transparent border-none cursor-pointer" />
+                           <span className="text-xs font-mono font-bold text-zinc-400">{storeSettings.font_color}</span>
+                         </div>
+                       </div>
+                    </div>
+                  </div>
+
+                  <div className="p-8 border-2 border-dashed border-zinc-800 rounded-3xl bg-zinc-950/30">
+                    <h3 className="text-sm font-black uppercase tracking-widest text-zinc-400 mb-6 flex items-center gap-2">
+                      <Shield size={16} /> Credenciais de Acesso
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <input type="email" value={storeSettings.email} onChange={e => setStoreSettings({...storeSettings, email: e.target.value})} className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl py-4 px-6 text-sm font-bold text-zinc-300 focus:outline-none focus:border-emerald-500 transition-colors" required />
+                        <input type="text" value={storeSettings.password} onChange={e => setStoreSettings({...storeSettings, password: e.target.value})} className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl py-4 px-6 text-sm font-bold text-zinc-300 focus:outline-none focus:border-emerald-500 transition-colors" required />
+                    </div>
+                  </div>
+                  
+                  <div className="pt-6">
+                    <button type="submit" disabled={uploading} className="bg-gradient-to-r from-emerald-600 to-cyan-500 hover:from-emerald-500 hover:to-cyan-400 text-slate-50 font-black px-12 py-6 rounded-full text-sm uppercase tracking-widest transition-all shadow-2xl shadow-emerald-500/20 flex items-center justify-center gap-3 w-full hover:scale-[1.01] active:scale-[0.99] border-t-2 border-white/10 disabled:opacity-50">
+                      <Save size={20} className="drop-shadow-md" />
+                      {uploading ? 'Salvando Configurações...' : 'Efetivar Alterações Seguras'}
+                    </button>
+                  </div>
+                </form>
             </motion.div>
           )}
 
