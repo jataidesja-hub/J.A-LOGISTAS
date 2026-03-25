@@ -31,7 +31,10 @@ export default function OwnerDashboard() {
     background_color: '#09090b',
     font_color: '#f8fafc',
     address: '',
-    delivery_fee: 0,
+    delivery_fee_base: 0,
+    delivery_fee_per_km: 0,
+    latitude: null,
+    longitude: null,
     logo: ''
   });
 
@@ -56,7 +59,10 @@ export default function OwnerDashboard() {
       background_color: sessionStore.background_color || '#09090b',
       font_color: sessionStore.font_color || '#f8fafc',
       address: sessionStore.address || '',
-      delivery_fee: sessionStore.delivery_fee || 0,
+      delivery_fee_base: sessionStore.delivery_fee_base || 0,
+      delivery_fee_per_km: sessionStore.delivery_fee_per_km || 0,
+      latitude: sessionStore.latitude || null,
+      longitude: sessionStore.longitude || null,
       logo: sessionStore.logo || ''
     });
 
@@ -261,7 +267,10 @@ export default function OwnerDashboard() {
         background_color: storeSettings.background_color,
         font_color: storeSettings.font_color,
         address: storeSettings.address,
-        delivery_fee: parseFloat(storeSettings.delivery_fee),
+        delivery_fee_base: parseFloat(storeSettings.delivery_fee_base),
+        delivery_fee_per_km: parseFloat(storeSettings.delivery_fee_per_km),
+        latitude: storeSettings.latitude ? parseFloat(storeSettings.latitude) : null,
+        longitude: storeSettings.longitude ? parseFloat(storeSettings.longitude) : null,
         logo: logoUrl
       };
 
@@ -614,8 +623,37 @@ export default function OwnerDashboard() {
                          <input type="text" value={storeSettings.address} onChange={e => setStoreSettings({...storeSettings, address: e.target.value})} placeholder="Ex: Rua das Flores, 123" className="w-full bg-zinc-950 border-2 border-zinc-800 rounded-3xl py-5 px-8 text-sm font-bold text-zinc-100 focus:outline-none focus:border-cyan-500 transition-colors shadow-inner" />
                        </div>
                        <div>
-                         <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-3 block ml-2">Tarifa de Entrega (R$)</label>
-                         <input type="number" step="0.01" value={storeSettings.delivery_fee} onChange={e => setStoreSettings({...storeSettings, delivery_fee: e.target.value})} className="w-full bg-zinc-950 border-2 border-zinc-800 rounded-3xl py-5 px-8 text-sm font-bold text-zinc-100 focus:outline-none focus:border-cyan-500 transition-colors shadow-inner" />
+                         <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-3 block ml-2">Taxa Base de Entrega (R$)</label>
+                         <input type="number" step="0.01" value={storeSettings.delivery_fee_base} onChange={e => setStoreSettings({...storeSettings, delivery_fee_base: e.target.value})} className="w-full bg-zinc-950 border-2 border-zinc-800 rounded-3xl py-5 px-8 text-sm font-bold text-zinc-100 focus:outline-none focus:border-cyan-500 transition-colors shadow-inner" />
+                       </div>
+                       <div>
+                         <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-3 block ml-2">Taxa por KM (R$)</label>
+                         <input type="number" step="0.01" value={storeSettings.delivery_fee_per_km} onChange={e => setStoreSettings({...storeSettings, delivery_fee_per_km: e.target.value})} className="w-full bg-zinc-950 border-2 border-zinc-800 rounded-3xl py-5 px-8 text-sm font-bold text-zinc-100 focus:outline-none focus:border-cyan-500 transition-colors shadow-inner" />
+                       </div>
+                       <div>
+                         <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-3 block ml-2">Localização GPS da Loja</label>
+                         <div className="flex gap-4">
+                           <input type="text" placeholder="Lat" value={storeSettings.latitude || ''} readOnly className="flex-1 bg-zinc-950 border-2 border-zinc-800 rounded-2xl py-4 px-4 text-xs font-mono text-zinc-400" />
+                           <input type="text" placeholder="Long" value={storeSettings.longitude || ''} readOnly className="flex-1 bg-zinc-950 border-2 border-zinc-800 rounded-2xl py-4 px-4 text-xs font-mono text-zinc-400" />
+                           <button 
+                             type="button"
+                             onClick={() => {
+                               if (navigator.geolocation) {
+                                  navigator.geolocation.getCurrentPosition(pos => {
+                                    setStoreSettings({
+                                      ...storeSettings, 
+                                      latitude: pos.coords.latitude, 
+                                      longitude: pos.coords.longitude 
+                                    });
+                                  });
+                               }
+                             }}
+                             className="p-4 bg-cyan-500 text-slate-950 rounded-2xl border border-cyan-400/50 shadow-lg shadow-cyan-500/20 active:scale-95 transition-transform"
+                           >
+                              <MapPin size={20} strokeWidth={3} />
+                           </button>
+                         </div>
+                         <p className="text-[10px] font-bold text-zinc-600 mt-3 ml-2 uppercase tracking-widest">Clique no ícone para capturar sua localização atual como ponto de origem.</p>
                        </div>
                     </div>
                   </div>

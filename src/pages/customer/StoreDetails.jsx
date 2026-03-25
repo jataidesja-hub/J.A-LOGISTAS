@@ -5,6 +5,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import Layout from '../../components/Layout';
 import ProductCard from '../../components/ProductCard';
 import { supabase } from '../../lib/supabaseClient';
+import { calculateDistance } from '../../lib/utils';
+import { LocatingProgress } from '../../components/LocatingProgress'; // Optional or inline
 
 
 export default function StoreDetails() {
@@ -17,6 +19,10 @@ export default function StoreDetails() {
   const [customerName, setCustomerName] = useState('');
   const [customerWhatsapp, setCustomerWhatsapp] = useState('');
   const [customerAddress, setCustomerAddress] = useState('');
+  const [customerCoords, setCustomerCoords] = useState(null);
+  const [isLocating, setIsLocating] = useState(false);
+  const [distance, setDistance] = useState(null);
+  const [selectedCategory, setSelectedCategory] = useState('Todos');
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -27,8 +33,17 @@ export default function StoreDetails() {
   useEffect(() => {
     async function fetchData() {
       try {
-        const { data: storeData } = await supabase.from('stores').select('*').eq('id', storeId).single();
-        const { data: prodData } = await supabase.from('products').select('*').eq('store_id', storeId);
+        let query = supabase.from('stores').select('*');
+        if (storeId) {
+          query = query.eq('id', storeId).single();
+        } else {
+          query = query.eq('status', 'Ativo').limit(1).single();
+        }
+        
+        const { data: storeData, error: storeError } = await query;
+        if (storeError) throw storeError;
+
+        const { data: prodData } = await supabase.from('products').select('*').eq('store_id', storeData.id);
         
         setStore(storeData || null);
         setProducts(prodData || []);
@@ -42,6 +57,32 @@ export default function StoreDetails() {
     }
     fetchData();
   }, [storeId]);
+
+  const getUserLocation = () => {
+    if (!navigator.geolocation) {
+      alert("Geolocalização não é suportada pelo seu navegador.");
+      return;
+    }
+
+    setIsLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        setCustomerCoords({ latitude, longitude });
+        
+        if (store && store.latitude && store.longitude) {
+          const dist = calculateDistance(latitude, longitude, store.latitude, store.longitude);
+          setDistance(dist);
+        }
+        setIsLocating(false);
+      },
+      (error) => {
+        console.error("Erro ao obter localizaçãoo:", error);
+        alert("Não foi possível obter sua localização atual.");
+        setIsLocating(false);
+      }
+    );
+  };
 
   const addToCart = (product) => {
     setCart((prev) => ({
@@ -66,9 +107,23 @@ export default function StoreDetails() {
     });
   };
 
+  const productsByCategory = products.filter(p => selectedCategory === 'Todos' || p.category === selectedCategory);
+  const productCategories = ['Todos', ...new Set(products.map(p => p.category).filter(Boolean))];
+
   const cartItems = Object.values(cart);
   const subtotal = cartItems.reduce((acc, item) => acc + item.price * item.quantity, 0);
-  const deliveryFee = deliveryType === 'delivery' ? (parseFloat(store?.delivery_fee) || 0) : 0;
+  
+  // Cálculo de frete dinâmico
+  const getDeliveryFee = () => {
+    if (deliveryType !== 'delivery') return 0;
+    if (!distance) return parseFloat(store?.delivery_fee_base) || 0;
+    
+    const base = parseFloat(store?.delivery_fee_base) || 0;
+    const perKm = parseFloat(store?.delivery_fee_per_km) || 0;
+    return base + (perKm * distance);
+  };
+
+  const deliveryFee = getDeliveryFee();
   const total = subtotal + deliveryFee;
 
 
@@ -130,9 +185,11 @@ export default function StoreDetails() {
       <header className="bg-zinc-900/50 backdrop-blur-2xl border-b border-zinc-800 sticky top-0 z-20 px-8 py-6 w-full shadow-2xl shadow-black/40">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-6">
-            <Link to="/" className="p-3 hover:bg-zinc-800 bg-zinc-900/50 rounded-[1.5rem] border border-zinc-800 transition-all text-zinc-400 group active:scale-95">
-              <ArrowLeft size={24} strokeWidth={2.5} className="group-hover:-translate-x-1 transition-transform" />
-            </Link>
+            {storeId && (
+              <Link to="/" className="p-3 hover:bg-zinc-800 bg-zinc-900/50 rounded-[1.5rem] border border-zinc-800 transition-all text-zinc-400 group active:scale-95">
+                <ArrowLeft size={24} strokeWidth={2.5} className="group-hover:-translate-x-1 transition-transform" />
+              </Link>
+            )}
             <div className="flex items-center gap-4">
               <div className="w-16 h-16 rounded-2xl bg-zinc-900 overflow-hidden border border-zinc-800 flex items-center justify-center text-3xl shadow-xl">
                  {store?.logo?.startsWith('http') ? (
@@ -186,8 +243,21 @@ export default function StoreDetails() {
               </h2>
             </div>
             
+            {/* Category Filter */}
+            <div className="flex flex-wrap gap-2 mb-10 overflow-x-auto pb-4 custom-scrollbar">
+              {productCategories.map(cat => (
+                <button 
+                  key={cat}
+                  onClick={() => setSelectedCategory(cat)}
+                  className={`px-6 py-2 border rounded-full text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap active:scale-95 ${selectedCategory === cat ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' : 'bg-zinc-900/50 border-zinc-800 text-zinc-500 hover:text-emerald-400 hover:border-emerald-500/30'}`}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {products.map((product) => (
+              {productsByCategory.map((product) => (
                 <ProductCard 
                   key={product.id} 
                   product={product} 
@@ -268,17 +338,43 @@ export default function StoreDetails() {
                       <motion.div 
                         initial={{ opacity: 0, height: 0 }}
                         animate={{ opacity: 1, height: 'auto' }}
-                        className="relative"
+                        className="space-y-3"
                       >
-                        <MapPin size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" />
-                        <input 
-                          type="text" 
-                          placeholder="Endereço de Entrega Completo" 
-                          value={customerAddress}
-                          onChange={(e) => setCustomerAddress(e.target.value)}
-                          className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl py-4 pl-12 pr-6 text-sm font-bold text-zinc-100 focus:outline-none transition-colors"
-                          style={{ borderColor: primaryColor + '33' }}
-                        />
+                        <div className="relative">
+                          <MapPin size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" />
+                          <input 
+                            type="text" 
+                            placeholder="Endereço de Entrega Completo" 
+                            value={customerAddress}
+                            onChange={(e) => setCustomerAddress(e.target.value)}
+                            className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl py-4 pl-12 pr-6 text-sm font-bold text-zinc-100 focus:outline-none transition-colors"
+                            style={{ borderColor: primaryColor + '33' }}
+                          />
+                        </div>
+                        <button 
+                          type="button"
+                          onClick={getUserLocation}
+                          disabled={isLocating}
+                          className="w-full py-3 bg-zinc-800/50 hover:bg-zinc-800 text-zinc-400 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] flex items-center justify-center gap-2 border border-zinc-800 transition-all active:scale-95 overflow-hidden relative group"
+                        >
+                          <div className="absolute inset-0 bg-emerald-500/5 translate-y-full group-hover:translate-y-0 transition-transform" />
+                          {isLocating ? (
+                            <Clock size={14} className="animate-spin text-emerald-400" />
+                          ) : (
+                            <MapPin size={14} className="text-emerald-500" />
+                          )}
+                          <span className="relative z-10">{isLocating ? 'Buscando GPS...' : 'Localizar via GPS'}</span>
+                        </button>
+                        {distance !== null && (
+                          <motion.p 
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            className="text-[10px] font-black uppercase tracking-widest text-center"
+                            style={{ color: primaryColor }}
+                          >
+                            Distância: {distance.toFixed(1)} km
+                          </motion.p>
+                        )}
                       </motion.div>
                     )}
                   </div>
@@ -311,7 +407,9 @@ export default function StoreDetails() {
                     {deliveryType === 'delivery' && (
                       <div className="flex justify-between items-center text-zinc-500 text-[10px] font-black uppercase tracking-widest">
                         <span>Taxa de Entrega</span>
-                        <span style={{ color: primaryColor }}>R$ {deliveryFee.toFixed(2)}</span>
+                        <span style={{ color: primaryColor }}>
+                          {isLocating ? 'Calculando...' : `R$ ${deliveryFee.toFixed(2)}`}
+                        </span>
                       </div>
                     )}
                     <div className="flex justify-between items-end pt-2">

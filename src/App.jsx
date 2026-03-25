@@ -10,8 +10,7 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Customer Routes */}
-        <Route path="/" element={<StoreList />} />
+        <Route path="/" element={<StoreDetails />} />
         <Route path="/loja/:storeId" element={<StoreDetails />} />
         
         {/* Owner Routes */}

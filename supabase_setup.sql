@@ -111,6 +111,14 @@ ALTER TABLE stores ADD COLUMN IF NOT EXISTS status text DEFAULT 'Ativo';
 ALTER TABLE stores ADD COLUMN IF NOT EXISTS description text;
 ALTER TABLE stores ADD COLUMN IF NOT EXISTS revenue numeric DEFAULT 0;
 ALTER TABLE stores ADD COLUMN IF NOT EXISTS customers integer DEFAULT 0;
+ALTER TABLE stores ADD COLUMN IF NOT EXISTS latitude double precision;
+ALTER TABLE stores ADD COLUMN IF NOT EXISTS longitude double precision;
+ALTER TABLE stores ADD COLUMN IF NOT EXISTS delivery_fee_base numeric DEFAULT 5.00;
+ALTER TABLE stores ADD COLUMN IF NOT EXISTS delivery_fee_per_km numeric DEFAULT 2.00;
+ALTER TABLE stores ADD COLUMN IF NOT EXISTS address text;
+ALTER TABLE stores ADD COLUMN IF NOT EXISTS primary_color text DEFAULT '#10b981';
+ALTER TABLE stores ADD COLUMN IF NOT EXISTS background_color text DEFAULT '#09090b';
+ALTER TABLE stores ADD COLUMN IF NOT EXISTS font_color text DEFAULT '#f8fafc';
 
 ALTER TABLE products ADD COLUMN IF NOT EXISTS image_url text;
 ALTER TABLE products ADD COLUMN IF NOT EXISTS category text;
